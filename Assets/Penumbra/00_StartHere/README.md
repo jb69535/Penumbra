@@ -8,6 +8,7 @@ Read these in order:
 2. `Docs/GameDesignDocument.md` for the current design.
 3. `Docs/ProjectStructure.md` for where each type of work belongs.
 4. `Assets/Penumbra/Scenes/Prototype_Cave.unity` to open the current prototype scene.
+5. `Tools > Penumbra > Rebuild Prototype Vertical Slice` if the prototype assets need to be regenerated.
 
 Common paths:
 

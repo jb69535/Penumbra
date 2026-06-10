@@ -8,6 +8,9 @@ This project is organized so developers and designers can find the right place b
 - `Docs/GameDesignDocument.md`: current design direction and gameplay requirements.
 - `Assets/Penumbra/00_StartHere`: Unity-side starting point for teammates.
 - `Assets/Penumbra/Scenes/Prototype_Cave.unity`: current playable prototype scene.
+- `Assets/Penumbra/Scenes/Sandboxes/Sandbox_Movement2D.unity`: movement, parallax, and hit-motion test scene.
+- `Tools > Penumbra > Rebuild Prototype Vertical Slice`: Unity menu command that regenerates prefabs, placeholder sprites, tuning data, the prototype scene, and the sandbox scene.
+- `Docs/TechnicalSetup_2_5D.md`: 3D Unity setup, 2D gameplay physics, sorting, and depth rules for the Hollow Knight-style target.
 
 ## Assets Folder
 
@@ -22,6 +25,7 @@ Use this for Unity scenes. Keep prototype, test, and production scenes clearly n
 Suggested names:
 
 - `Prototype_Cave.unity`
+- `Sandboxes/Sandbox_Movement2D.unity`
 - `CombatTest_Player.unity`
 - `PuzzleTest_Mirror.unity`
 - `Floor01_LowerCave.unity`
@@ -33,11 +37,13 @@ Use this for C# gameplay and editor code. Create subfolders only when there is r
 Suggested subfolders:
 
 - `Core`
-- `Input`
+- `Camera`
 - `Player`
 - `Combat`
+- `Enemies`
 - `World`
 - `Puzzles`
+- `Data`
 - `UI`
 - `Editor`
 
@@ -49,7 +55,9 @@ Suggested subfolders:
 
 - `Player`
 - `Enemies`
+- `Environment`
 - `Interactables`
+- `Cameras`
 - `Puzzles`
 - `UI`
 
@@ -63,7 +71,8 @@ Suggested subfolders:
 - `Enemies`
 - `Items`
 - `Dialogue`
-- `Tuning`
+- `Player`
+- `Puzzles`
 
 ### `Assets/Penumbra/Art`
 
@@ -72,7 +81,7 @@ Use this for source and imported visual assets.
 Suggested subfolders:
 
 - `Characters`
-- `Environments`
+- `Environment`
 - `Tilesets`
 - `Animations`
 - `Materials`

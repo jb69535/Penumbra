@@ -11,11 +11,11 @@ TagManager:
   - 
   - Water
   - UI
-  - 
-  - 
-  - 
-  - 
-  - 
+  - Player
+  - Environment
+  - Hitbox
+  - Hurtbox
+  - Parallax
   - 
   - 
   - 
@@ -38,6 +38,27 @@ TagManager:
   - 
   - 
   m_SortingLayers:
+  - name: Background Far
+    uniqueID: 1001
+    locked: 0
+  - name: Background Mid
+    uniqueID: 1002
+    locked: 0
+  - name: Environment
+    uniqueID: 1003
+    locked: 0
   - name: Default
     uniqueID: 0
+    locked: 0
+  - name: Gameplay
+    uniqueID: 1004
+    locked: 0
+  - name: Foreground
+    uniqueID: 1005
+    locked: 0
+  - name: VFX
+    uniqueID: 1006
+    locked: 0
+  - name: UI
+    uniqueID: 1007
     locked: 0

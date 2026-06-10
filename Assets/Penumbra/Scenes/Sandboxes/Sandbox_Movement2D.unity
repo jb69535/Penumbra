@@ -598,7 +598,7 @@ GameObject:
   - component: {fileID: 200001}
   - component: {fileID: 200002}
   m_Layer: 0
-  m_Name: Wanderer_Player
+  m_Name: Wanderer_MovementSandbox
   m_TagString: Untagged
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
@@ -970,7 +970,7 @@ GameObject:
   m_Component:
   - component: {fileID: 360001}
   m_Layer: 0
-  m_Name: Prototype Seed - A/D move, Space double jump, Shift dash, J attack, H test hit
+  m_Name: Controls - A/D move, Space double jump, Shift dash, J attack, H test hit
   m_TagString: Untagged
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
