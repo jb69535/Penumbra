@@ -19,6 +19,18 @@ Use this exact Unity editor version on both macOS and Windows. Different patch v
 6. Open the project folder from Unity Hub.
 7. Let Unity import the project before making edits.
 
+## Project Map
+
+- Start in Unity at `Assets/Penumbra/00_StartHere`.
+- Game scenes live in `Assets/Penumbra/Scenes`.
+- Gameplay code lives in `Assets/Penumbra/Scripts`.
+- Reusable scene objects live in `Assets/Penumbra/Prefabs`.
+- Tunable gameplay data lives in `Assets/Penumbra/Data`.
+- Designer-owned visual and audio assets live in `Assets/Penumbra/Art` and `Assets/Penumbra/Audio`.
+- Unity render pipeline and project configuration assets stay in `Assets/Settings` and `ProjectSettings`.
+
+For the full folder guide, read [Project Structure](Docs/ProjectStructure.md).
+
 ## Collaboration Rules
 
 - Commit `Assets/`, `Packages/`, `ProjectSettings/`, `Docs/`, `.gitignore`, `.gitattributes`, and `README.md`.
@@ -31,4 +43,3 @@ Use this exact Unity editor version on both macOS and Windows. Different patch v
 ## Current Design Docs
 
 - [Game Design Document](Docs/GameDesignDocument.md)
-
