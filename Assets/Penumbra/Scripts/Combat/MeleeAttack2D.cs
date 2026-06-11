@@ -31,7 +31,10 @@ namespace Penumbra.Combat
 
             nextAttackTime = Time.time + cooldown;
             Vector2 center = (Vector2)transform.position + new Vector2(attackOffset.x * character.FacingSign, attackOffset.y);
-            int hitCount = Physics2D.OverlapBoxNonAlloc(center, attackSize, 0f, hitBuffer, targetLayers);
+            ContactFilter2D targetFilter = new();
+            targetFilter.SetLayerMask(targetLayers);
+            targetFilter.useTriggers = true;
+            int hitCount = Physics2D.OverlapBox(center, attackSize, 0f, targetFilter, hitBuffer);
 
             for (int i = 0; i < hitCount; i++)
             {

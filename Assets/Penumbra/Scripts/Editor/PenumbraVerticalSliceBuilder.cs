@@ -160,7 +160,7 @@ namespace Penumbra.EditorTools
             receiver.transform.SetParent(puzzleRoot.transform);
 
             CreateBlockInstance(blockPrefab, "Exit Ledge", new Vector2(25.5f, -0.1f), new Vector2(5.2f, 0.45f), new Color(0.28f, 0.32f, 0.4f, 1f), true, false, "Environment", 1, blockSprite, greyboxRoot.transform);
-            CreateMarker("Scene Goal - fight shade, toggle P, hold R and aim mirror to open the exit door", new Vector3(18.8f, 3.3f, 0f), root.transform);
+            CreateMarker("Scene Goal - chain the shade with J, toggle P, hold R and aim mirror to open the exit door", new Vector3(18.8f, 3.3f, 0f), root.transform);
 
             EditorSceneManager.SaveScene(scene, PrototypeScenePath);
         }
@@ -192,7 +192,7 @@ namespace Penumbra.EditorTools
             CreateBlockInstance(blockPrefab, "Jump Test Platform", new Vector2(-2.4f, 0.15f), new Vector2(3.1f, 0.35f), new Color(0.32f, 0.36f, 0.44f, 1f), true, false, "Environment", 2, blockSprite, null);
             CreateBlockInstance(blockPrefab, "Dash Test Platform", new Vector2(3.15f, 1.4f), new Vector2(2.6f, 0.35f), new Color(0.32f, 0.36f, 0.44f, 1f), true, false, "Environment", 2, blockSprite, null);
             CreateBlockInstance(blockPrefab, "Hit Motion Test Pad", new Vector2(5.7f, -1.15f), new Vector2(0.85f, 1.65f), new Color(1f, 0.22f, 0.18f, 0.72f), true, true, "VFX", 10, blockSprite, null).AddComponent<DamageVolume2D>();
-            CreateMarker("Controls - A/D move, Space double jump, Shift dash, J attack, P light/shadow, R aim mirrors", new Vector3(0f, 3.4f, 0f), null);
+            CreateMarker("Controls - A/D move, Space double jump, Shift dash, J chain, P light/shadow, R aim mirrors", new Vector3(0f, 3.4f, 0f), null);
 
             EditorSceneManager.SaveScene(scene, SandboxScenePath);
         }
@@ -281,7 +281,7 @@ namespace Penumbra.EditorTools
             PenumbraCharacterController2D controller = player.AddComponent<PenumbraCharacterController2D>();
             controller.SetBodySprite(sprite);
             player.AddComponent<LightShadowStateController>();
-            player.AddComponent<MeleeAttack2D>();
+            player.AddComponent<ChainAttack2D>();
 
             return SavePrefab(player, PlayerPrefabPath);
         }

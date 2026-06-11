@@ -597,6 +597,7 @@ GameObject:
   m_Component:
   - component: {fileID: 200001}
   - component: {fileID: 200002}
+  - component: {fileID: 200003}
   m_Layer: 0
   m_Name: Wanderer_Player
   m_TagString: Untagged
@@ -651,6 +652,42 @@ MonoBehaviour:
   dashColor: {r: 0.72, g: 1, b: 0.88, a: 1}
   attackColor: {r: 1, g: 0.92, b: 0.42, a: 1}
   hitColor: {r: 1, g: 0.33, b: 0.28, a: 1}
+--- !u!114 &200003
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 200000}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 9f58a2b4dc4f4f02a413a127a5a12f34, type: 3}
+  m_Name:
+  m_EditorClassIdentifier:
+  readInput: 1
+  targetLayers:
+    serializedVersion: 2
+    m_Bits: 4294967295
+  attackRange: 2.75
+  swingDuration: 0.26
+  cooldown: 0.42
+  damage: 14
+  knockback: {x: 6.5, y: 2.2}
+  hitRadius: 0.22
+  anchorOffset: {x: 0.35, y: 0.32}
+  idleLength: 0.58
+  idleDrop: 0.42
+  swingStartAngle: -18
+  swingEndAngle: 22
+  chainSlack: 0.18
+  whipBend: 0.2
+  visualSegments: 7
+  lineWidth: 0.08
+  showIdleChain: 1
+  sortingLayerName: VFX
+  sortingOrder: 14
+  chainColor: {r: 0.82, g: 0.9, b: 1, a: 1}
+  activeChainColor: {r: 1, g: 0.9, b: 0.42, a: 1}
 --- !u!1 &300000
 GameObject:
   m_ObjectHideFlags: 0
