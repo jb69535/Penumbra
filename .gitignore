@@ -1,3 +1,6 @@
+# Accidental nested Unity project copy (open C:\Dev\Penumbra, not C:\Dev\Penumbra\Penumbra)
+/Penumbra/
+
 # Unity generated folders
 [Ll]ibrary/
 [Tt]emp/
