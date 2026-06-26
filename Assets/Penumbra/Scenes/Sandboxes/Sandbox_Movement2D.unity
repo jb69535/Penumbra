@@ -630,10 +630,12 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 2110e2f382554d328994ca8a67d84f2a, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  moveSpeed: 6
+  moveSpeed: 7.5
   acceleration: 80
-  airAcceleration: 42
-  jumpVelocity: 10.5
+  groundDeceleration: 95
+  airAcceleration: 55
+  airDeceleration: 48
+  jumpVelocity: 13.5
   extraAirJumps: 1
   dashSpeed: 16
   dashDuration: 0.14
@@ -642,15 +644,28 @@ MonoBehaviour:
     serializedVersion: 2
     m_Bits: 4294967295
   groundCheckDistance: 0.08
+  groundCheckWidth: 0.56
+  coyoteTime: 0.1
+  jumpBufferTime: 0.12
+  jumpCutMultiplier: 0.45
+  fallGravityMultiplier: 1.7
+  maxFallSpeed: -22
   testHitKnockback: {x: 8, y: 5}
   hitStunDuration: 0.24
   hitFlashDuration: 0.2
-  attackPulseDuration: 0.12
-  bodySprite: {fileID: 0}
+  attackPulseDuration: 0.24
+  bodySprite: {fileID: 21300000, guid: 751ebf56802543f88f65637b17d683e5, type: 3}
+  useGeneratedWandererAnimation: 0
+  useConceptSpriteAnimation: 1
+  animationMovementThreshold: 0.08
+  idleFrameRate: 5
+  walkFrameRate: 8
+  runFrameRate: 14
+  attackFrameRate: 18
   sortingLayerName: Gameplay
-  idleColor: {r: 0.48, g: 0.82, b: 1, a: 1}
-  dashColor: {r: 0.72, g: 1, b: 0.88, a: 1}
-  attackColor: {r: 1, g: 0.92, b: 0.42, a: 1}
+  idleColor: {r: 1, g: 1, b: 1, a: 1}
+  dashColor: {r: 0.74, g: 1, b: 0.9, a: 1}
+  attackColor: {r: 1, g: 1, b: 1, a: 1}
   hitColor: {r: 1, g: 0.33, b: 0.28, a: 1}
 --- !u!114 &200003
 MonoBehaviour:
@@ -674,20 +689,24 @@ MonoBehaviour:
   damage: 14
   knockback: {x: 6.5, y: 2.2}
   hitRadius: 0.22
-  anchorOffset: {x: 0.35, y: 0.32}
-  idleLength: 0.58
-  idleDrop: 0.42
-  swingStartAngle: -18
-  swingEndAngle: 22
+  pogoBounceVelocity: 15.5
+  hitstopDuration: 0.045
+  cameraShakeIntensity: 0.12
+  cameraShakeDuration: 0.11
+  anchorOffset: {x: 0.32, y: -0.24}
+  idleLength: 0.5
+  idleDrop: 0.34
+  swingStartAngle: -10
+  swingEndAngle: 18
   chainSlack: 0.18
   whipBend: 0.2
-  visualSegments: 7
-  lineWidth: 0.08
+  visualSegments: 9
+  lineWidth: 0.09
   showIdleChain: 1
   sortingLayerName: VFX
   sortingOrder: 14
-  chainColor: {r: 0.82, g: 0.9, b: 1, a: 1}
-  activeChainColor: {r: 1, g: 0.9, b: 0.42, a: 1}
+  chainColor: {r: 0.62, g: 0.64, b: 0.6, a: 1}
+  activeChainColor: {r: 0.95, g: 0.84, b: 0.46, a: 1}
 --- !u!1 &300000
 GameObject:
   m_ObjectHideFlags: 0
