@@ -1,4 +1,7 @@
 using UnityEngine;
+#if UNITY_EDITOR
+using UnityEditor;
+#endif
 
 namespace Penumbra.World
 {
@@ -56,8 +59,24 @@ namespace Penumbra.World
         void OnValidate()
         {
             size = new Vector2(Mathf.Max(0.01f, size.x), Mathf.Max(0.01f, size.y));
+#if UNITY_EDITOR
+            EditorApplication.delayCall += DeferredApplyConfiguration;
+#else
+            ApplyConfiguration(false);
+#endif
+        }
+
+#if UNITY_EDITOR
+        void DeferredApplyConfiguration()
+        {
+            if (this == null)
+            {
+                return;
+            }
+
             ApplyConfiguration(false);
         }
+#endif
 
         void ApplyConfiguration(bool createMissing = true)
         {

@@ -17,6 +17,14 @@ Use this exact Unity editor version on both macOS and Windows. Different patch v
 4. Clone the repository.
 5. Run `git lfs install` once on your machine.
 6. Open the project folder from Unity Hub.
+
+   **Important:** open the repository root that directly contains `Assets`, `Packages`, and `ProjectSettings`.
+
+   - Correct: `C:\Dev\Penumbra`
+   - Wrong: `C:\Dev\Penumbra\Penumbra`
+
+   If Unity Hub creates a nested `Penumbra\Penumbra` folder, close Unity, delete that inner copy, and add/open the parent folder instead.
+
 7. Let Unity import the project before making edits.
 
 ## Project Map
