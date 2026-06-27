@@ -14,18 +14,15 @@ namespace Penumbra.EditorTools
     public static class PlayerArtSetupEditor
     {
         const string PlayerArtFolder = "Assets/Penumbra/Art/Characters/Player";
-        const string PlayerPrefabPath = "Assets/Penumbra/Prefabs/Player/CinderWisp_Player.prefab";
         const string SandboxScenePath = "Assets/Penumbra/Scenes/Sandboxes/Sandbox_Movement2D.unity";
         const string RunFramesFolder = "Assets/Penumbra/Art/Characters/Player/Frames/Run";
         const string JumpFramesFolder = "Assets/Penumbra/Art/Characters/Player/Frames/Jump";
+        const string IdleFramesFolder = "Assets/Penumbra/Art/Characters/Player/Frames/Idle";
+        const string SitFramesFolder = "Assets/Penumbra/Art/Characters/Player/Frames/Sit";
+        const string DashFramesFolder = "Assets/Penumbra/Art/Characters/Player/Frames/Dash";
+        const string SlideFramesFolder = "Assets/Penumbra/Art/Characters/Player/Frames/Slide";
+        const string GameArtSourceFolder = @"C:\Users\FLEXBOY\Downloads\game";
         const float TargetCharacterHeight = 1.8f;
-
-        static readonly string[] CharacterSheetFiles =
-        {
-            "character_sheet_0.png",
-            "character_sheet_1.png",
-            "character_sheet_2.png"
-        };
 
         [MenuItem("Tools/Penumbra/Open Movement Sandbox Scene")]
         public static void OpenMovementSandboxScene()
@@ -41,36 +38,6 @@ namespace Penumbra.EditorTools
 
             EditorSceneManager.OpenScene(SandboxScenePath, OpenSceneMode.Single);
             Selection.activeObject = AssetDatabase.LoadAssetAtPath<SceneAsset>(SandboxScenePath);
-        }
-
-        [MenuItem("Tools/Penumbra/Assign Player Run Jump Sprites")]
-        public static void AssignPlayerRunJumpSprites()
-        {
-            string projectRoot = Directory.GetParent(Application.dataPath).FullName;
-            string scriptPath = Path.Combine(projectRoot, "Tools", "assign_player_sprites.py");
-            if (!File.Exists(scriptPath))
-            {
-                EditorUtility.DisplayDialog("Penumbra", "assign_player_sprites.py not found in Tools folder.", "OK");
-                return;
-            }
-
-            System.Diagnostics.ProcessStartInfo startInfo = new()
-            {
-                FileName = "py",
-                Arguments = $"\"{scriptPath}\"",
-                WorkingDirectory = projectRoot,
-                UseShellExecute = false,
-                CreateNoWindow = true
-            };
-
-            System.Diagnostics.Process process = System.Diagnostics.Process.Start(startInfo);
-            process?.WaitForExit();
-
-            AssetDatabase.Refresh();
-            EditorUtility.DisplayDialog(
-                "Penumbra",
-                "Run/Jump sprite arrays assigned on CinderWisp_Player prefab.\n\nIf Player is in the scene, it inherits from the prefab automatically.",
-                "OK");
         }
 
         [MenuItem("Tools/Penumbra/Setup Cinder Wisp Player (Fix Everything)")]
@@ -100,14 +67,25 @@ namespace Penumbra.EditorTools
             }
 
             Directory.CreateDirectory("Assets/Penumbra/Prefabs/Player");
-            RunPythonSpriteProcessing();
+            RunGameSpriteImport();
             AssetDatabase.Refresh();
 
             float pixelsPerUnit = TargetCharacterHeight > 0f ? 100f : 100f;
             Sprite idle = ImportSingleSprite($"{PlayerArtFolder}/player_idle_0.png", ref pixelsPerUnit);
-            Sprite dash = ImportSingleSprite($"{PlayerArtFolder}/player_dash_0.png", pixelsPerUnit);
+            Sprite[] idleFrames = ImportFrameFolder(IdleFramesFolder, pixelsPerUnit);
             Sprite[] runFrames = ImportFrameFolder(RunFramesFolder, pixelsPerUnit);
             Sprite[] jumpFrames = ImportFrameFolder(JumpFramesFolder, pixelsPerUnit);
+            Sprite[] sitFrames = ImportFrameFolder(SitFramesFolder, pixelsPerUnit);
+            Sprite[] dashFrames = ImportFrameFolder(DashFramesFolder, pixelsPerUnit);
+            Sprite[] slideFrames = ImportFrameFolder(SlideFramesFolder, pixelsPerUnit);
+            Sprite frontIdle = ImportSingleSprite($"{PlayerArtFolder}/player_idle_0.png", pixelsPerUnit);
+            Sprite sideLeft = ImportSingleSprite($"{PlayerArtFolder}/player_left_0.png", pixelsPerUnit);
+            Sprite sideRight = ImportSingleSprite($"{PlayerArtFolder}/player_right_0.png", pixelsPerUnit);
+            Sprite sitIdle = ImportSingleSprite($"{PlayerArtFolder}/player_sit_0.png", pixelsPerUnit);
+            if (sideRight == null)
+            {
+                sideRight = dashFrames.Length > 0 ? dashFrames[0] : null;
+            }
 
             if (idle == null)
             {
@@ -119,56 +97,62 @@ namespace Penumbra.EditorTools
                 return;
             }
 
-            if (runFrames.Length == 0 || jumpFrames.Length == 0)
+            if (runFrames.Length == 0 || jumpFrames.Length == 0 || sitFrames.Length == 0 || dashFrames.Length == 0 || slideFrames.Length == 0)
             {
                 if (showDialogs)
                 {
                     EditorUtility.DisplayDialog(
                         "Penumbra",
-                        "Run/Jump frame PNGs are missing.\n\nRun Tools/process_sprite_sheets.py or use this menu again.",
+                        "Run/Jump/Sit/Dash/Slide frame PNGs are missing.\n\nRun Tools/import_game_sprites.py or use this menu again.",
                         "OK");
                 }
 
                 return;
             }
 
-            for (int i = 0; i < CharacterSheetFiles.Length; i++)
-            {
-                string assetPath = $"{PlayerArtFolder}/{CharacterSheetFiles[i]}";
-                if (!File.Exists(assetPath))
-                {
-                    continue;
-                }
-
-                PrepareCharacterSheetForManualSlice(assetPath);
-            }
-
-            GameObject prefab = CreatePlayerPrefab(idle, runFrames, jumpFrames, dash);
-            PlacePlayerInSandbox(prefab, idle, runFrames, jumpFrames, dash);
+            GameObject wanderer = ConfigureWandererInSandbox(
+                idleFrames,
+                runFrames,
+                jumpFrames,
+                sitFrames,
+                dashFrames,
+                slideFrames,
+                frontIdle,
+                sideLeft,
+                sideRight,
+                sitIdle);
 
             AssetDatabase.SaveAssets();
             AssetDatabase.Refresh();
 
-            Selection.activeObject = prefab;
+            if (wanderer != null)
+            {
+                Selection.activeObject = wanderer;
+            }
 
             if (showDialogs)
             {
                 EditorUtility.DisplayDialog(
                     "Penumbra Player Setup",
-                    "Cinder Wisp player is ready.\n\n" +
-                    "- White backgrounds removed (transparent PNG).\n" +
-                    "- Run/Jump sheets sliced into 6 frames each.\n" +
-                    "- Prefab: CinderWisp_Player\n" +
+                    "Cinder Wisp sprites are wired to the git-base Wanderer controller.\n\n" +
+                    "- Movement: PenumbraCharacterController2D (Shift dash, Shift+Down+dir slide, J attack)\n" +
+                    "- Sprites: idle/run/jump/sit/dash/slide from Downloads/game\n" +
+                    "- Down/S/C: sit idle; Down+Left/Right: crouch walk\n" +
                     "- Scene: Sandbox_Movement2D\n\n" +
-                    "Play and use A/D + Space.",
+                    "Play with the Wanderer_MovementSandbox object.",
                     "OK");
             }
         }
 
-        static void RunPythonSpriteProcessing()
+        static void RunGameSpriteImport()
         {
+            if (!Directory.Exists(GameArtSourceFolder))
+            {
+                return;
+            }
+
             string projectRoot = Directory.GetParent(Application.dataPath).FullName;
-            string scriptPath = Path.Combine(projectRoot, "Tools", "process_sprite_sheets.py");
+            string scriptPath = Path.Combine(projectRoot, "Tools", "import_game_sprites.py");
             if (!File.Exists(scriptPath))
             {
                 return;
@@ -271,7 +255,7 @@ namespace Penumbra.EditorTools
             return sprites.ToArray();
         }
 
-        static Sprite ImportFrameSprite(string assetPath, float fallbackPixelsPerUnit)
+        static Sprite ImportFrameSprite(string assetPath, float pixelsPerUnit)
         {
             if (!File.Exists(assetPath))
             {
@@ -280,37 +264,15 @@ namespace Penumbra.EditorTools
 
             TextureImporter importer = GetSpriteImporter(assetPath);
             importer.spriteImportMode = SpriteImportMode.Single;
+            importer.spritePixelsPerUnit = Mathf.Max(1f, pixelsPerUnit);
             importer.spritePivot = new Vector2(0.5f, 0f);
             importer.alphaIsTransparency = true;
             importer.mipmapEnabled = false;
             importer.filterMode = FilterMode.Bilinear;
-            importer.isReadable = true;
-            importer.SaveAndReimport();
-
-            Texture2D texture = AssetDatabase.LoadAssetAtPath<Texture2D>(assetPath);
-            float framePixelsPerUnit = fallbackPixelsPerUnit;
-            if (texture != null && texture.height > 0)
-            {
-                framePixelsPerUnit = texture.height / TargetCharacterHeight;
-            }
-
-            importer.spritePixelsPerUnit = Mathf.Max(1f, framePixelsPerUnit);
             importer.isReadable = false;
             importer.SaveAndReimport();
 
             return AssetDatabase.LoadAssetAtPath<Sprite>(assetPath);
-        }
-
-        static void PrepareCharacterSheetForManualSlice(string assetPath)
-        {
-            TextureImporter importer = GetSpriteImporter(assetPath);
-            importer.spriteImportMode = SpriteImportMode.Multiple;
-            importer.spritePixelsPerUnit = 100f;
-            importer.alphaIsTransparency = true;
-            importer.mipmapEnabled = false;
-            importer.filterMode = FilterMode.Bilinear;
-            importer.isReadable = false;
-            importer.SaveAndReimport();
         }
 
         static TextureImporter GetSpriteImporter(string assetPath)
@@ -320,68 +282,64 @@ namespace Penumbra.EditorTools
             return importer;
         }
 
-        static GameObject CreatePlayerPrefab(Sprite idle, Sprite[] runFrames, Sprite[] jumpFrames, Sprite dash)
-        {
-            GameObject player = new("CinderWisp_Player");
-
-            Rigidbody2D body = player.AddComponent<Rigidbody2D>();
-            body.bodyType = RigidbodyType2D.Dynamic;
-            body.gravityScale = 3.2f;
-            body.freezeRotation = true;
-            body.interpolation = RigidbodyInterpolation2D.Interpolate;
-            body.collisionDetectionMode = CollisionDetectionMode2D.Continuous;
-
-            CapsuleCollider2D capsule = player.AddComponent<CapsuleCollider2D>();
-            capsule.direction = CapsuleDirection2D.Vertical;
-            capsule.size = new Vector2(0.85f, 1.8f);
-
-            PlayerController controller = player.AddComponent<PlayerController>();
-            controller.ConfigureSprites(idle, runFrames, jumpFrames, dash);
-
-            if (File.Exists(PlayerPrefabPath))
-            {
-                AssetDatabase.DeleteAsset(PlayerPrefabPath);
-            }
-
-            PrefabUtility.SaveAsPrefabAsset(player, PlayerPrefabPath);
-            UnityEngine.Object.DestroyImmediate(player);
-
-            return AssetDatabase.LoadAssetAtPath<GameObject>(PlayerPrefabPath);
-        }
-
-        static void PlacePlayerInSandbox(
-            GameObject playerPrefab,
-            Sprite idle,
+        static GameObject ConfigureWandererInSandbox(
+            Sprite[] idleFrames,
             Sprite[] runFrames,
             Sprite[] jumpFrames,
-            Sprite dash)
+            Sprite[] sitFrames,
+            Sprite[] dashFrames,
+            Sprite[] slideFrames,
+            Sprite frontIdle,
+            Sprite sideLeft,
+            Sprite sideRight,
+            Sprite sitIdle)
         {
             if (!File.Exists(SandboxScenePath))
             {
-                return;
+                return null;
             }
 
             Scene scene = EditorSceneManager.OpenScene(SandboxScenePath, OpenSceneMode.Single);
             float floorTopY = FindFloorTopY(scene);
-            float playerCenterY = floorTopY + TargetCharacterHeight * 0.5f;
+            const float wandererColliderHeight = 1.68f;
+            float playerCenterY = floorTopY + wandererColliderHeight * 0.5f;
 
-            PlayerController existing = UnityEngine.Object.FindFirstObjectByType<PlayerController>();
-
-            foreach (PenumbraCharacterController2D legacy in UnityEngine.Object.FindObjectsByType<PenumbraCharacterController2D>(FindObjectsInactive.Include, FindObjectsSortMode.None))
+            PenumbraCharacterController2D wanderer = UnityEngine.Object.FindFirstObjectByType<PenumbraCharacterController2D>(FindObjectsInactive.Include);
+            if (wanderer == null)
             {
-                legacy.gameObject.SetActive(false);
+                EditorUtility.DisplayDialog(
+                    "Penumbra",
+                    "Wanderer_MovementSandbox was not found in the sandbox scene.",
+                    "OK");
+                return null;
             }
 
-            GameObject playerObject;
-            if (existing != null)
-            {
-                UnityEngine.Object.DestroyImmediate(existing.gameObject);
-            }
+            wanderer.gameObject.SetActive(true);
+            wanderer.transform.position = new Vector3(-4.75f, playerCenterY, 0f);
+            wanderer.ConfigureCinderWispSprites(
+                idleFrames,
+                runFrames,
+                jumpFrames,
+                sitFrames,
+                dashFrames,
+                slideFrames,
+                frontIdle,
+                sideLeft,
+                sideRight,
+                sitIdle);
 
-            playerObject = (GameObject)PrefabUtility.InstantiatePrefab(playerPrefab);
-            playerObject.name = "Player";
-
-            playerObject.transform.position = new Vector3(-4.75f, playerCenterY, 0f);
+            SerializedObject serializedWanderer = new SerializedObject(wanderer);
+            serializedWanderer.FindProperty("moveSpeed").floatValue = 7.5f;
+            serializedWanderer.FindProperty("jumpVelocity").floatValue = 13.5f;
+            serializedWanderer.FindProperty("groundDeceleration").floatValue = 95f;
+            serializedWanderer.FindProperty("airAcceleration").floatValue = 55f;
+            serializedWanderer.FindProperty("airDeceleration").floatValue = 48f;
+            serializedWanderer.FindProperty("coyoteTime").floatValue = 0.1f;
+            serializedWanderer.FindProperty("jumpBufferTime").floatValue = 0.12f;
+            serializedWanderer.FindProperty("jumpCutMultiplier").floatValue = 0.45f;
+            serializedWanderer.FindProperty("fallGravityMultiplier").floatValue = 1.7f;
+            serializedWanderer.FindProperty("maxFallSpeed").floatValue = -22f;
+            serializedWanderer.ApplyModifiedPropertiesWithoutUndo();
 
             Camera mainCamera = Camera.main;
             if (mainCamera != null)
@@ -389,12 +347,13 @@ namespace Penumbra.EditorTools
                 FollowCamera2D follow = mainCamera.GetComponent<FollowCamera2D>();
                 if (follow != null)
                 {
-                    follow.Target = playerObject.transform;
+                    follow.Target = wanderer.transform;
                 }
             }
 
             EditorSceneManager.MarkSceneDirty(scene);
             EditorSceneManager.SaveScene(scene);
+            return wanderer.gameObject;
         }
 
         static float FindFloorTopY(Scene scene)

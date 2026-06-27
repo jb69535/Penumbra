@@ -81,6 +81,33 @@ namespace Penumbra.Player
         [SerializeField] Color hitColor = new(1f, 0.33f, 0.28f, 1f);
         [SerializeField] Animator animator;
 
+        [Header("Cinder Wisp Sprites")]
+        [SerializeField] bool useCinderWispSpriteAnimation;
+        [SerializeField] Sprite[] cinderIdleSprites;
+        [SerializeField] Sprite[] cinderRunSprites;
+        [SerializeField] Sprite[] cinderJumpSprites;
+        [SerializeField] Sprite[] cinderSitSprites;
+        [SerializeField] Sprite cinderSitIdleSprite;
+        [SerializeField] Sprite[] cinderDashSprites;
+        [SerializeField] Sprite[] cinderSlideSprites;
+        [SerializeField] Sprite cinderFrontIdleSprite;
+        [SerializeField] Sprite cinderSideLeftSprite;
+        [SerializeField] Sprite cinderSideRightSprite;
+        [SerializeField] float cinderIdleFrameRate = 6f;
+        [SerializeField] float cinderRunFrameRate = 12f;
+        [SerializeField] float cinderDashFrameRate = 14f;
+        [SerializeField] float cinderSlideFrameRate = 12f;
+        [SerializeField] float cinderSitFrameRate = 8f;
+        [SerializeField] float cinderSitMoveSpeed = 3.5f;
+        [SerializeField] float cinderSlideSpeed = 10f;
+        [SerializeField] float cinderSlideDuration = 0.52f;
+        [SerializeField] float cinderSlideCooldown = 0.35f;
+        [SerializeField] float cinderSlideCapsuleHeight = 0.74f;
+        [SerializeField] float cinderSlideCapsuleWidth = 0.78f;
+        [SerializeField] float cinderSlideVisualOffsetY = -0.1f;
+        [SerializeField] float cinderSitCapsuleHeight = 1.05f;
+        [SerializeField] float cinderSitCapsuleWidth = 0.68f;
+
         Rigidbody2D body;
         CapsuleCollider2D capsule;
         SpriteRenderer visualRenderer;
@@ -89,12 +116,15 @@ namespace Penumbra.Player
 
         Vector2 moveInput;
         bool dashQueued;
+        bool slideQueued;
         bool attackQueued;
         bool jumpReleased;
         int jumpsRemaining;
         int facingSign = 1;
         float dashTimer;
         float dashCooldownTimer;
+        float slideTimer;
+        float slideCooldownTimer;
         float hitStunTimer;
         float hitFlashTimer;
         float attackPulseTimer;
@@ -115,6 +145,23 @@ namespace Penumbra.Player
         bool hasAnimDashing;
         bool hasAnimAttacking;
         bool hasAnimHurt;
+        bool sitHeld;
+        bool sitMovingHeld;
+        bool slideInputHeld;
+        bool wasSlideComboHeld;
+        bool cinderWasSitting;
+        bool cinderWasSitMoving;
+        bool wasSitHeld;
+        bool wasSittingPhysics;
+        bool cinderUseFrontIdle = true;
+        bool cinderSpriteFlipX;
+        float cinderCycleTimer;
+        int cinderFrame;
+        Sprite[] cinderActiveLoopFrames;
+
+        public bool IsSitting => useCinderWispSpriteAnimation && sitHeld && isGrounded && slideTimer <= 0f;
+        public bool IsSitMoving => IsSitting && sitMovingHeld;
+        public bool IsSliding => slideTimer > 0f;
 
         static readonly int AnimSpeed = Animator.StringToHash("Speed");
         static readonly int AnimYVelocity = Animator.StringToHash("YVelocity");
@@ -158,6 +205,38 @@ namespace Penumbra.Player
             ConfigureVisual();
         }
 
+        public void ConfigureCinderWispSprites(
+            Sprite[] idleFrames,
+            Sprite[] runFrames,
+            Sprite[] jumpFrames,
+            Sprite[] sitFrames,
+            Sprite[] dashFrames,
+            Sprite[] slideFrames,
+            Sprite frontIdle = null,
+            Sprite sideLeft = null,
+            Sprite sideRight = null,
+            Sprite sitIdle = null)
+        {
+            cinderIdleSprites = idleFrames;
+            cinderRunSprites = runFrames;
+            cinderJumpSprites = jumpFrames;
+            cinderSitSprites = sitFrames;
+            cinderSitIdleSprite = sitIdle;
+            cinderDashSprites = dashFrames;
+            cinderSlideSprites = slideFrames;
+            cinderFrontIdleSprite = frontIdle ?? (idleFrames != null && idleFrames.Length > 0 ? idleFrames[0] : null);
+            cinderSideLeftSprite = sideLeft;
+            cinderSideRightSprite = sideRight;
+            cinderUseFrontIdle = true;
+            cinderSpriteFlipX = false;
+            ResetCinderSpriteLoopState();
+            useCinderWispSpriteAnimation = idleFrames != null && idleFrames.Length > 0;
+            useConceptSpriteAnimation = false;
+            useGeneratedWandererAnimation = false;
+            CacheComponents();
+            ConfigureVisual();
+        }
+
         public void ApplyHitFrom(Vector2 sourcePosition)
         {
             ApplyHitFrom(sourcePosition, testHitKnockback);
@@ -179,6 +258,7 @@ namespace Penumbra.Player
             }
 
             dashTimer = 0f;
+            slideTimer = 0f;
             hitStunTimer = hitStunDuration;
             hitFlashTimer = hitFlashDuration;
             body.linearVelocity = new Vector2(direction * knockback.x, knockback.y);
@@ -193,6 +273,8 @@ namespace Penumbra.Player
 
         void Awake()
         {
+            cinderUseFrontIdle = true;
+            cinderSpriteFlipX = false;
             CacheComponents();
             ConfigurePhysics();
             ConfigureVisual();
@@ -232,6 +314,21 @@ namespace Penumbra.Player
             walkFrameRate = Mathf.Max(0f, walkFrameRate);
             runFrameRate = Mathf.Max(walkFrameRate, runFrameRate);
             attackFrameRate = Mathf.Max(0f, attackFrameRate);
+            cinderIdleFrameRate = Mathf.Max(1f, cinderIdleFrameRate);
+            cinderRunFrameRate = Mathf.Max(1f, cinderRunFrameRate);
+            cinderDashFrameRate = Mathf.Max(1f, cinderDashFrameRate);
+            cinderSlideFrameRate = Mathf.Max(1f, cinderSlideFrameRate);
+            cinderSitFrameRate = Mathf.Max(1f, cinderSitFrameRate);
+            cinderSitMoveSpeed = Mathf.Max(0f, cinderSitMoveSpeed);
+            cinderSlideSpeed = Mathf.Max(0f, cinderSlideSpeed);
+            cinderSlideDuration = Mathf.Max(0f, cinderSlideDuration);
+            cinderSlideCooldown = Mathf.Max(0f, cinderSlideCooldown);
+            cinderSlideCapsuleHeight = Mathf.Clamp(cinderSlideCapsuleHeight, 0.55f, ColliderHeight);
+            cinderSlideCapsuleWidth = Mathf.Clamp(cinderSlideCapsuleWidth, 0.4f, ColliderWidth);
+            cinderSlideVisualOffsetY = Mathf.Clamp(cinderSlideVisualOffsetY, -0.35f, 0.05f);
+            cinderSitCapsuleHeight = Mathf.Clamp(cinderSitCapsuleHeight, 0.5f, ColliderHeight);
+            cinderSlideCapsuleHeight = Mathf.Min(cinderSlideCapsuleHeight, cinderSitCapsuleHeight - 0.01f);
+            cinderSitCapsuleWidth = Mathf.Clamp(cinderSitCapsuleWidth, 0.4f, ColliderWidth);
 
             if (!gameObject.scene.IsValid())
             {
@@ -240,7 +337,10 @@ namespace Penumbra.Player
 
             CacheComponents(false);
             ConfigurePhysics();
-            ConfigureVisual();
+            if (!Application.isPlaying)
+            {
+                ConfigureVisual();
+            }
         }
 
         void Update()
@@ -263,6 +363,7 @@ namespace Penumbra.Player
                 return;
             }
 
+            ApplyColliderPose();
             UpdateGrounded();
 
             if (isGrounded && body.linearVelocity.y <= 0.05f)
@@ -279,6 +380,16 @@ namespace Penumbra.Player
             {
                 jumpBufferTimer = 0f;
                 dashQueued = false;
+                slideQueued = false;
+                return;
+            }
+
+            if (slideTimer > 0f)
+            {
+                body.linearVelocity = new Vector2(facingSign * cinderSlideSpeed, 0f);
+                jumpBufferTimer = 0f;
+                MaintainLowProfileGroundContact();
+                UpdateGrounded();
                 return;
             }
 
@@ -289,25 +400,57 @@ namespace Penumbra.Player
                 return;
             }
 
-            if (dashQueued && dashCooldownTimer <= 0f)
+            if (slideQueued && isGrounded && slideCooldownTimer <= 0f && dashTimer <= 0f)
+            {
+                StartSlide();
+            }
+
+            if (dashQueued && !slideQueued && dashCooldownTimer <= 0f && slideTimer <= 0f)
             {
                 StartDash();
             }
 
-            if (jumpBufferTimer > 0f)
+            if (jumpBufferTimer > 0f && !IsSitting && slideTimer <= 0f)
             {
                 TryJump();
             }
+
+            bool sittingNow = sitHeld && isGrounded && slideTimer <= 0f;
+            if (UsesLowProfileCollider())
+            {
+                if (sittingNow && !wasSitHeld)
+                {
+                    SnapFeetToGround();
+                }
+
+                MaintainLowProfileGroundContact();
+                UpdateGrounded();
+            }
+            else if (wasSittingPhysics && isGrounded)
+            {
+                SnapFeetToGround();
+                UpdateGrounded();
+            }
+
+            wasSitHeld = sittingNow;
+            wasSittingPhysics = sittingNow || IsSliding;
 
             ApplyHorizontalMovement();
             ApplyBetterGravity();
 
             dashQueued = false;
+            slideQueued = false;
         }
 
         void ReadInput()
         {
             float horizontal = 0f;
+            sitHeld = false;
+            sitMovingHeld = false;
+            slideInputHeld = false;
+            bool shiftHeld = false;
+            bool downHeld = false;
+            bool horizontalPressed = false;
 
             Keyboard keyboard = Keyboard.current;
             if (keyboard != null)
@@ -322,13 +465,44 @@ namespace Penumbra.Player
                     horizontal += 1f;
                 }
 
+                shiftHeld = keyboard.leftShiftKey.isPressed || keyboard.rightShiftKey.isPressed;
+                downHeld = keyboard.downArrowKey.isPressed || keyboard.sKey.isPressed || keyboard.cKey.isPressed;
+
+                if (useCinderWispSpriteAnimation)
+                {
+                    sitHeld = downHeld && !shiftHeld;
+                    sitMovingHeld = sitHeld && Mathf.Abs(horizontal) > 0.01f;
+                    slideInputHeld = shiftHeld && downHeld && Mathf.Abs(horizontal) > 0.01f;
+                }
+
                 if (keyboard.spaceKey.wasPressedThisFrame)
                 {
                     jumpBufferTimer = jumpBufferTime;
                 }
 
                 jumpReleased |= keyboard.spaceKey.wasReleasedThisFrame;
-                dashQueued |= keyboard.leftShiftKey.wasPressedThisFrame || keyboard.rightShiftKey.wasPressedThisFrame;
+
+                bool shiftPressed = keyboard.leftShiftKey.wasPressedThisFrame || keyboard.rightShiftKey.wasPressedThisFrame;
+                bool downPressed = keyboard.downArrowKey.wasPressedThisFrame
+                    || keyboard.sKey.wasPressedThisFrame
+                    || keyboard.cKey.wasPressedThisFrame;
+                horizontalPressed |= keyboard.aKey.wasPressedThisFrame
+                    || keyboard.dKey.wasPressedThisFrame
+                    || keyboard.leftArrowKey.wasPressedThisFrame
+                    || keyboard.rightArrowKey.wasPressedThisFrame;
+
+                if (shiftPressed && !downHeld)
+                {
+                    dashQueued = true;
+                }
+
+                if (TryQueueSlide(shiftHeld, downHeld, horizontal, shiftPressed, downPressed, horizontalPressed))
+                {
+                    slideQueued = true;
+                    dashQueued = false;
+                    cinderUseFrontIdle = false;
+                }
+
                 attackQueued |= keyboard.jKey.wasPressedThisFrame;
 
                 if (keyboard.hKey.wasPressedThisFrame)
@@ -342,13 +516,46 @@ namespace Penumbra.Player
             {
                 Vector2 stick = gamepad.leftStick.ReadValue();
                 horizontal += stick.x;
+                bool gamepadShiftHeld = gamepad.leftShoulder.isPressed || gamepad.rightShoulder.isPressed;
+                bool gamepadDownHeld = stick.y < -0.75f && Mathf.Abs(stick.x) < 0.35f;
+                bool shoulderPressed = gamepad.leftShoulder.wasPressedThisFrame || gamepad.rightShoulder.wasPressedThisFrame;
+                shiftHeld |= gamepadShiftHeld;
+                downHeld |= gamepadDownHeld;
+
+                if (useCinderWispSpriteAnimation)
+                {
+                    bool gamepadSitHeld = gamepadDownHeld && !gamepadShiftHeld;
+                    sitHeld |= gamepadSitHeld;
+                    sitMovingHeld |= gamepadSitHeld && Mathf.Abs(horizontal) > 0.01f;
+                    bool gamepadSlideInput = gamepadShiftHeld && stick.y < -0.65f && Mathf.Abs(stick.x) > 0.35f;
+                    slideInputHeld |= gamepadSlideInput;
+                }
+
+                if (shoulderPressed && !gamepadDownHeld)
+                {
+                    dashQueued = true;
+                }
+
+                if (TryQueueSlide(
+                        gamepadShiftHeld,
+                        stick.y < -0.65f,
+                        stick.x,
+                        shoulderPressed,
+                        false,
+                        Mathf.Abs(stick.x) > 0.45f))
+                {
+                    slideQueued = true;
+                    dashQueued = false;
+                    cinderUseFrontIdle = false;
+                }
+
                 if (gamepad.buttonSouth.wasPressedThisFrame)
                 {
                     jumpBufferTimer = jumpBufferTime;
                 }
 
                 jumpReleased |= gamepad.buttonSouth.wasReleasedThisFrame;
-                dashQueued |= gamepad.leftShoulder.wasPressedThisFrame || gamepad.rightShoulder.wasPressedThisFrame;
+
                 attackQueued |= gamepad.buttonWest.wasPressedThisFrame;
 
                 if (gamepad.buttonNorth.wasPressedThisFrame)
@@ -359,8 +566,14 @@ namespace Penumbra.Player
 
             horizontal = Mathf.Clamp(horizontal, -1f, 1f);
             moveInput = new Vector2(horizontal, 0f);
+            wasSlideComboHeld = useCinderWispSpriteAnimation && slideInputHeld;
 
-            if (Mathf.Abs(horizontal) > 0.01f)
+            if (useCinderWispSpriteAnimation && cinderUseFrontIdle && Mathf.Abs(horizontal) > 0.01f)
+            {
+                cinderUseFrontIdle = false;
+            }
+
+            if (Mathf.Abs(horizontal) > 0.01f && !slideInputHeld)
             {
                 facingSign = horizontal > 0f ? 1 : -1;
             }
@@ -376,6 +589,8 @@ namespace Penumbra.Player
         {
             dashTimer = Mathf.Max(0f, dashTimer - deltaTime);
             dashCooldownTimer = Mathf.Max(0f, dashCooldownTimer - deltaTime);
+            slideTimer = Mathf.Max(0f, slideTimer - deltaTime);
+            slideCooldownTimer = Mathf.Max(0f, slideCooldownTimer - deltaTime);
             hitStunTimer = Mathf.Max(0f, hitStunTimer - deltaTime);
             hitFlashTimer = Mathf.Max(0f, hitFlashTimer - deltaTime);
             attackPulseTimer = Mathf.Max(0f, attackPulseTimer - deltaTime);
@@ -384,7 +599,13 @@ namespace Penumbra.Player
 
         void ApplyHorizontalMovement()
         {
-            float targetSpeed = moveInput.x * moveSpeed;
+            if (slideTimer > 0f || dashTimer > 0f)
+            {
+                return;
+            }
+
+            float speed = IsSitMoving ? cinderSitMoveSpeed : IsSitting ? 0f : moveSpeed;
+            float targetSpeed = moveInput.x * speed;
             bool hasInput = Mathf.Abs(moveInput.x) > 0.01f;
             float rate = isGrounded
                 ? hasInput ? acceleration : groundDeceleration
@@ -443,9 +664,49 @@ namespace Penumbra.Player
                 facingSign = moveInput.x > 0f ? 1 : -1;
             }
 
+            cinderUseFrontIdle = false;
             dashTimer = dashDuration;
             dashCooldownTimer = dashCooldown;
+            slideTimer = 0f;
             body.linearVelocity = new Vector2(facingSign * dashSpeed, 0f);
+        }
+
+        void StartSlide()
+        {
+            if (Mathf.Abs(moveInput.x) > 0.01f)
+            {
+                facingSign = moveInput.x > 0f ? 1 : -1;
+            }
+
+            cinderUseFrontIdle = false;
+            slideTimer = cinderSlideDuration;
+            slideCooldownTimer = cinderSlideCooldown;
+            dashTimer = 0f;
+            ResetCinderSpriteLoopState();
+            if (cinderSlideSprites != null && cinderSlideSprites.Length > 0)
+            {
+                cinderFrame = Mathf.Min(2, cinderSlideSprites.Length - 1);
+            }
+
+            ApplyColliderPose();
+            SnapFeetToGround();
+            UpdateGrounded();
+            body.linearVelocity = new Vector2(facingSign * cinderSlideSpeed, 0f);
+        }
+
+        bool TryQueueSlide(bool shiftHeld, bool downHeld, float horizontal, bool shiftPressed, bool downPressed, bool horizontalPressed)
+        {
+            if (!useCinderWispSpriteAnimation)
+            {
+                return false;
+            }
+
+            if (!shiftHeld || !downHeld || Mathf.Abs(horizontal) <= 0.01f)
+            {
+                return false;
+            }
+
+            return !wasSlideComboHeld || shiftPressed || downPressed || horizontalPressed;
         }
 
         void UpdateGrounded()
@@ -545,8 +806,47 @@ namespace Penumbra.Player
             body.collisionDetectionMode = CollisionDetectionMode2D.Continuous;
 
             capsule.direction = CapsuleDirection2D.Vertical;
-            capsule.size = new Vector2(ColliderWidth, ColliderHeight);
-            capsule.offset = Vector2.zero;
+            ApplyColliderPose();
+        }
+
+        void ApplyColliderPose()
+        {
+            if (capsule == null)
+            {
+                return;
+            }
+
+            float height = ColliderHeight;
+            float width = ColliderWidth;
+            if (IsSliding)
+            {
+                height = cinderSlideCapsuleHeight;
+                width = cinderSlideCapsuleWidth;
+            }
+            else if (UsesSitProfileCollider())
+            {
+                height = cinderSitCapsuleHeight;
+                width = cinderSitCapsuleWidth;
+            }
+
+            float offsetY = (ColliderHeight - height) * 0.5f;
+            capsule.size = new Vector2(width, height);
+            capsule.offset = new Vector2(0f, -offsetY);
+        }
+
+        bool UsesSitProfileCollider()
+        {
+            return sitHeld && (isGrounded || wasSitHeld);
+        }
+
+        bool UsesLowProfileCollider()
+        {
+            if (slideTimer > 0f)
+            {
+                return isGrounded || wasSittingPhysics;
+            }
+
+            return UsesSitProfileCollider();
         }
 
         void ConfigureVisual()
@@ -556,7 +856,18 @@ namespace Penumbra.Player
                 return;
             }
 
-            if (UsesGeneratedPrototypeVisual())
+            if (UsesCinderWispSpriteAnimation())
+            {
+                if (!Application.isPlaying)
+                {
+                    Sprite[] idleFrames = cinderIdleSprites;
+                    visualRenderer.sprite = idleFrames != null && idleFrames.Length > 0 ? idleFrames[0] : bodySprite;
+                    ResetCinderSpriteLoopState();
+                    cinderWasSitting = false;
+                    cinderWasSitMoving = false;
+                }
+            }
+            else if (UsesGeneratedPrototypeVisual())
             {
                 visualRenderer.sprite = GetRuntimeCharacterSprite(PrototypeWandererSpriteFactory.WandererPose.Idle, 0);
                 currentGeneratedFrame = 0;
@@ -582,9 +893,16 @@ namespace Penumbra.Player
             visualRenderer.sortingOrder = 10;
             visualRenderer.flipX = facingSign < 0;
 
-            visualTransform.localPosition = Vector3.zero;
             visualTransform.localRotation = Quaternion.identity;
-            visualTransform.localScale = new Vector3(VisualWidthScale, VisualHeightScale, 1f);
+            if (UsesCinderWispSpriteAnimation())
+            {
+                ApplyCinderVisualFeetPose();
+            }
+            else
+            {
+                visualTransform.localPosition = Vector3.zero;
+                visualTransform.localScale = new Vector3(VisualWidthScale, VisualHeightScale, 1f);
+            }
         }
 
         void UpdateVisualMotion()
@@ -595,33 +913,209 @@ namespace Penumbra.Player
             }
 
             Color color = idleColor;
-            Vector3 scale = new(VisualWidthScale, VisualHeightScale, 1f);
+            Vector3 scale = UsesCinderWispSpriteAnimation()
+                ? Vector3.one
+                : new(VisualWidthScale, VisualHeightScale, 1f);
 
-            UpdateConceptSpriteAnimation();
-            UpdateGeneratedPrototypeAnimation();
+            if (UsesCinderWispSpriteAnimation())
+            {
+                UpdateCinderWispSpriteAnimation();
+            }
+            else
+            {
+                UpdateConceptSpriteAnimation();
+                UpdateGeneratedPrototypeAnimation();
+            }
 
             if (dashTimer > 0f)
             {
                 color = dashColor;
-                scale = new Vector3(VisualWidthScale * 1.12f, VisualHeightScale * 0.86f, 1f);
+                if (!UsesCinderWispSpriteAnimation())
+                {
+                    scale = new Vector3(VisualWidthScale * 1.12f, VisualHeightScale * 0.86f, 1f);
+                }
             }
 
             if (attackPulseTimer > 0f)
             {
                 color = attackColor;
-                scale = new Vector3(VisualWidthScale * 1.08f, VisualHeightScale * 0.96f, 1f);
+                if (!UsesCinderWispSpriteAnimation())
+                {
+                    scale = new Vector3(VisualWidthScale * 1.08f, VisualHeightScale * 0.96f, 1f);
+                }
             }
 
             if (hitFlashTimer > 0f)
             {
                 color = hitColor;
-                scale = new Vector3(VisualWidthScale * 1.14f, VisualHeightScale * 0.88f, 1f);
+                if (!UsesCinderWispSpriteAnimation())
+                {
+                    scale = new Vector3(VisualWidthScale * 1.14f, VisualHeightScale * 0.88f, 1f);
+                }
             }
 
             visualRenderer.color = color;
-            visualRenderer.flipX = facingSign < 0;
-            visualTransform.localScale = scale;
+            visualRenderer.flipX = UsesCinderWispSpriteAnimation() ? cinderSpriteFlipX : facingSign < 0;
+
+            if (UsesCinderWispSpriteAnimation())
+            {
+                ApplyCinderVisualFeetPose();
+            }
+            else
+            {
+                visualTransform.localScale = scale;
+            }
+
             UpdateAnimatorParameters();
+        }
+
+        void ApplyCinderVisualFeetPose()
+        {
+            if (visualTransform == null || capsule == null)
+            {
+                return;
+            }
+
+            Sprite activeSprite = visualRenderer != null ? visualRenderer.sprite : null;
+            float feetLocalY = capsule.offset.y - capsule.size.y * 0.5f;
+            float spriteBottomLocalY = activeSprite != null ? activeSprite.bounds.min.y : 0f;
+            float uniformScale = 1f;
+
+            if (IsSitting)
+            {
+                Sprite sideReferenceSprite = GetCinderSideReferenceSprite();
+                Sprite sitReferenceSprite = GetCinderSitReferenceSprite();
+                uniformScale = GetCinderLowProfileVisualScale(activeSprite, sitReferenceSprite, sideReferenceSprite);
+            }
+
+            visualTransform.localScale = new Vector3(uniformScale, uniformScale, 1f);
+            float visualOffsetY = IsSliding ? cinderSlideVisualOffsetY : 0f;
+            visualTransform.localPosition = new Vector3(0f, feetLocalY - spriteBottomLocalY * uniformScale + visualOffsetY, 0f);
+        }
+
+        Sprite GetCinderSitReferenceSprite()
+        {
+            if (cinderSitSprites != null && cinderSitSprites.Length > 0)
+            {
+                return cinderSitSprites[0];
+            }
+
+            return cinderSitIdleSprite;
+        }
+
+        static float GetCinderLowProfileVisualScale(
+            Sprite activeSprite,
+            Sprite sitReferenceSprite,
+            Sprite sideReferenceSprite)
+        {
+            if (activeSprite == null || sitReferenceSprite == null || sideReferenceSprite == null)
+            {
+                return 1f;
+            }
+
+            float referenceWidth = sideReferenceSprite.bounds.size.x;
+            float sitWidth = sitReferenceSprite.bounds.size.x;
+            float sitScale = sitWidth > referenceWidth + 0.001f ? referenceWidth / sitWidth : 1f;
+            float targetHeight = sitReferenceSprite.bounds.size.y * sitScale;
+            return targetHeight / Mathf.Max(activeSprite.bounds.size.y, 0.001f);
+        }
+
+        void MaintainLowProfileGroundContact()
+        {
+            MaintainSitGroundContact();
+        }
+
+        void MaintainSitGroundContact()
+        {
+            if (body == null)
+            {
+                return;
+            }
+
+            Vector2 velocity = body.linearVelocity;
+            if (velocity.y < 0f)
+            {
+                body.linearVelocity = new Vector2(velocity.x, 0f);
+            }
+
+            SnapFeetToGround();
+        }
+
+        void SnapFeetToGround()
+        {
+            if (body == null || capsule == null || !TrySampleGroundY(out float groundY))
+            {
+                return;
+            }
+
+            float delta = groundY - capsule.bounds.min.y;
+            if (Mathf.Abs(delta) <= 0.002f)
+            {
+                return;
+            }
+
+            if ((IsSitting || IsSliding) && delta < 0f)
+            {
+                return;
+            }
+
+            body.MovePosition(body.position + new Vector2(0f, delta));
+        }
+
+        bool TrySampleGroundY(out float groundY)
+        {
+            groundY = 0f;
+            if (capsule == null)
+            {
+                return false;
+            }
+
+            ContactFilter2D filter = new();
+            filter.SetLayerMask(groundLayers);
+            filter.useTriggers = false;
+
+            Bounds bounds = capsule.bounds;
+            float halfWidth = Mathf.Min(bounds.extents.x, groundCheckWidth * 0.5f);
+            float probeDistance = groundCheckDistance + GroundProbeSkin + 0.35f;
+            float probeY = bounds.min.y + GroundProbeSkin;
+
+            Vector2[] origins =
+            {
+                new(bounds.center.x, probeY),
+                new(bounds.center.x - halfWidth, probeY),
+                new(bounds.center.x + halfWidth, probeY),
+            };
+
+            bool found = false;
+            float bestY = float.NegativeInfinity;
+
+            for (int i = 0; i < origins.Length; i++)
+            {
+                int hitCount = Physics2D.Raycast(origins[i], Vector2.down, filter, groundHits, probeDistance);
+                for (int hitIndex = 0; hitIndex < hitCount; hitIndex++)
+                {
+                    Collider2D hitCollider = groundHits[hitIndex].collider;
+                    if (hitCollider == null || hitCollider == capsule || hitCollider.transform.IsChildOf(transform))
+                    {
+                        continue;
+                    }
+
+                    float hitY = groundHits[hitIndex].point.y;
+                    if (!found || hitY > bestY)
+                    {
+                        bestY = hitY;
+                        found = true;
+                    }
+                }
+            }
+
+            if (!found)
+            {
+                return false;
+            }
+
+            groundY = bestY;
+            return true;
         }
 
         void UpdateAnimatorParameters()
@@ -855,14 +1349,265 @@ namespace Penumbra.Player
             }
         }
 
+        void UpdateCinderWispSpriteAnimation()
+        {
+            bool animationGrounded = IsAnimationGrounded();
+            bool sitting = IsSitting;
+            bool sitMoving = IsSitMoving;
+            if (sitting && !cinderWasSitting)
+            {
+                ResetCinderSpriteLoopState();
+            }
+
+            if (sitMoving != cinderWasSitMoving)
+            {
+                ResetCinderSpriteLoopState();
+            }
+
+            cinderWasSitting = sitting;
+            cinderWasSitMoving = sitMoving;
+            cinderSpriteFlipX = false;
+
+            float horizontalSpeed = GetCinderHorizontalSpeed();
+            bool wantsMoveAnimation = WantsCinderMoveAnimation(sitting);
+
+            if (cinderUseFrontIdle && dashTimer <= 0f && slideTimer <= 0f && animationGrounded && !sitting)
+            {
+                if (!wantsMoveAnimation && horizontalSpeed <= animationMovementThreshold && TrySetCinderFrontIdleSprite())
+                {
+                    return;
+                }
+            }
+
+            cinderSpriteFlipX = facingSign < 0;
+
+            if (slideTimer > 0f && cinderSlideSprites != null && cinderSlideSprites.Length > 0)
+            {
+                float slideFrameRate = cinderSlideSprites.Length / Mathf.Max(cinderSlideDuration, 0.01f);
+                PlayCinderSpriteLoop(cinderSlideSprites, slideFrameRate, Time.deltaTime);
+                return;
+            }
+
+            if (dashTimer > 0f && cinderDashSprites != null && cinderDashSprites.Length > 0)
+            {
+                PlayCinderSpriteLoop(cinderDashSprites, cinderDashFrameRate, Time.deltaTime);
+                return;
+            }
+
+            if (dashTimer > 0f)
+            {
+                return;
+            }
+
+            if (!animationGrounded && cinderJumpSprites != null && cinderJumpSprites.Length > 0)
+            {
+                cinderActiveLoopFrames = null;
+                int lastFrame = cinderJumpSprites.Length - 1;
+                float verticalSpeed = body != null ? body.linearVelocity.y : 0f;
+                int frame = verticalSpeed > 0.35f
+                    ? 0
+                    : verticalSpeed > -0.35f
+                        ? Mathf.Min(1, lastFrame)
+                        : Mathf.Min(2, lastFrame);
+                SetCinderSprite(cinderJumpSprites[frame]);
+                return;
+            }
+
+            if (sitting)
+            {
+                if (sitMoving && cinderSitSprites != null && cinderSitSprites.Length > 0)
+                {
+                    PlayCinderSpriteLoop(cinderSitSprites, cinderSitFrameRate, Time.deltaTime);
+                    return;
+                }
+
+                cinderActiveLoopFrames = null;
+                if (cinderSitIdleSprite != null)
+                {
+                    SetCinderSprite(cinderSitIdleSprite);
+                    return;
+                }
+
+                if (cinderSitSprites != null && cinderSitSprites.Length > 0)
+                {
+                    SetCinderSprite(cinderSitSprites[0]);
+                    return;
+                }
+            }
+
+            if (hitStunTimer <= 0f && wantsMoveAnimation && cinderRunSprites != null && cinderRunSprites.Length > 0)
+            {
+                PlayCinderSpriteLoop(cinderRunSprites, cinderRunFrameRate, Time.deltaTime);
+                return;
+            }
+
+            cinderActiveLoopFrames = null;
+            if (!wantsMoveAnimation && TrySetCinderSideIdleSprite())
+            {
+                return;
+            }
+
+            if (cinderIdleSprites != null && cinderIdleSprites.Length > 0)
+            {
+                PlayCinderSpriteLoop(cinderIdleSprites, cinderIdleFrameRate, Time.deltaTime);
+            }
+        }
+
+        bool IsAnimationGrounded()
+        {
+            if (isGrounded)
+            {
+                return true;
+            }
+
+            if (body == null)
+            {
+                return false;
+            }
+
+            return coyoteTimer > 0f && body.linearVelocity.y <= 0.35f;
+        }
+
+        float GetCinderHorizontalSpeed()
+        {
+            float moveSpeedForAnimation = IsSitMoving ? cinderSitMoveSpeed : IsSitting ? 0f : moveSpeed;
+            float inputSpeed = Mathf.Abs(moveInput.x) * moveSpeedForAnimation;
+            if (body == null)
+            {
+                return inputSpeed;
+            }
+
+            return Mathf.Max(Mathf.Abs(body.linearVelocity.x), inputSpeed);
+        }
+
+        bool WantsCinderMoveAnimation(bool sitting)
+        {
+            if (sitting || dashTimer > 0f || slideTimer > 0f)
+            {
+                return false;
+            }
+
+            if (Mathf.Abs(moveInput.x) > 0.01f)
+            {
+                return true;
+            }
+
+            return GetCinderHorizontalSpeed() > animationMovementThreshold;
+        }
+
+        void ResetCinderSpriteLoopState()
+        {
+            cinderActiveLoopFrames = null;
+            cinderCycleTimer = 0f;
+            cinderFrame = 0;
+        }
+
+        bool TrySetCinderFrontIdleSprite()
+        {
+            Sprite frontSprite = cinderFrontIdleSprite;
+            if (frontSprite == null && cinderIdleSprites != null && cinderIdleSprites.Length > 0)
+            {
+                frontSprite = cinderIdleSprites[0];
+            }
+
+            if (frontSprite == null)
+            {
+                return false;
+            }
+
+            SetCinderSprite(frontSprite);
+            return true;
+        }
+
+        bool TrySetCinderSideIdleSprite()
+        {
+            if (facingSign >= 0 && cinderSideRightSprite != null)
+            {
+                SetCinderSprite(cinderSideRightSprite);
+                cinderSpriteFlipX = false;
+                return true;
+            }
+
+            if (facingSign < 0 && cinderSideLeftSprite != null)
+            {
+                SetCinderSprite(cinderSideLeftSprite);
+                cinderSpriteFlipX = false;
+                return true;
+            }
+
+            return false;
+        }
+
+        Sprite GetCinderSideReferenceSprite()
+        {
+            if (cinderSideRightSprite != null)
+            {
+                return cinderSideRightSprite;
+            }
+
+            if (cinderIdleSprites != null && cinderIdleSprites.Length > 0)
+            {
+                return cinderIdleSprites[0];
+            }
+
+            return cinderFrontIdleSprite;
+        }
+
+        void PlayCinderSpriteLoop(Sprite[] frames, float frameRate, float deltaTime)
+        {
+            if (frames == null || frames.Length == 0)
+            {
+                return;
+            }
+
+            if (frames != cinderActiveLoopFrames)
+            {
+                cinderActiveLoopFrames = frames;
+                cinderCycleTimer = 0f;
+                cinderFrame = 0;
+            }
+
+            if (frames.Length == 1)
+            {
+                SetCinderSprite(frames[0]);
+                return;
+            }
+
+            cinderCycleTimer += deltaTime;
+            float frameDuration = 1f / Mathf.Max(frameRate, 0.01f);
+
+            while (cinderCycleTimer >= frameDuration)
+            {
+                cinderCycleTimer -= frameDuration;
+                cinderFrame = (cinderFrame + 1) % frames.Length;
+            }
+
+            SetCinderSprite(frames[cinderFrame]);
+        }
+
+        void SetCinderSprite(Sprite sprite)
+        {
+            if (sprite == null || visualRenderer == null)
+            {
+                return;
+            }
+
+            visualRenderer.sprite = sprite;
+        }
+
+        bool UsesCinderWispSpriteAnimation()
+        {
+            return useCinderWispSpriteAnimation && cinderIdleSprites != null && cinderIdleSprites.Length > 0;
+        }
+
         bool UsesGeneratedPrototypeVisual()
         {
-            return useGeneratedWandererAnimation || bodySprite == null;
+            return !UsesCinderWispSpriteAnimation() && (useGeneratedWandererAnimation || bodySprite == null);
         }
 
         bool UsesConceptSpriteAnimation()
         {
-            return useConceptSpriteAnimation && !UsesGeneratedPrototypeVisual();
+            return useConceptSpriteAnimation && !UsesCinderWispSpriteAnimation() && !UsesGeneratedPrototypeVisual();
         }
 
         static Sprite GetConceptSprite(PrototypeWandererSpriteFactory.WandererPose pose, int frame)
