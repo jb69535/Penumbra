@@ -1,4 +1,5 @@
 using System.IO;
+using Penumbra.Art;
 using Penumbra.CameraTools;
 using Penumbra.Combat;
 using Penumbra.Core;
@@ -30,6 +31,7 @@ namespace Penumbra.EditorTools
         const string DoorPrefabPath = "Assets/Penumbra/Prefabs/Puzzles/ReceiverDoor.prefab";
 
         const string MovementTuningPath = "Assets/Penumbra/Data/Player/PlayerMovementTuning.asset";
+        const string WandererConceptSpritePath = "Assets/Penumbra/Art/Characters/Wanderer_Redesign_Concept.png";
         const string WandererSpritePath = "Assets/Penumbra/Art/Characters/Wanderer_Prototype.png";
         const string ShadeSpritePath = "Assets/Penumbra/Art/Characters/ShadePatroller_Prototype.png";
         const string BlockSpritePath = "Assets/Penumbra/Art/Environment/Block_CavePrototype.png";
@@ -269,14 +271,14 @@ namespace Penumbra.EditorTools
 
             Rigidbody2D body = player.AddComponent<Rigidbody2D>();
             body.bodyType = RigidbodyType2D.Dynamic;
-            body.gravityScale = 3.2f;
+            body.gravityScale = 4.4f;
             body.freezeRotation = true;
             body.interpolation = RigidbodyInterpolation2D.Interpolate;
             body.collisionDetectionMode = CollisionDetectionMode2D.Continuous;
 
             CapsuleCollider2D capsule = player.AddComponent<CapsuleCollider2D>();
             capsule.direction = CapsuleDirection2D.Vertical;
-            capsule.size = new Vector2(0.85f, 1.8f);
+            capsule.size = new Vector2(0.72f, 1.68f);
 
             PenumbraCharacterController2D controller = player.AddComponent<PenumbraCharacterController2D>();
             controller.SetBodySprite(sprite);
@@ -431,26 +433,14 @@ namespace Penumbra.EditorTools
 
         static Sprite CreateWandererSprite()
         {
-            const int width = 96;
-            const int height = 192;
-            Texture2D texture = CreateTransparentTexture(width, height);
-            Color fill = Color.white;
-            Color outline = new(0.18f, 0.21f, 0.28f, 1f);
-            Vector2 top = new(width * 0.5f, height - width * 0.5f);
-            Vector2 bottom = new(width * 0.5f, width * 0.5f);
-
-            for (int y = 0; y < height; y++)
+            Sprite conceptSprite = AssetDatabase.LoadAssetAtPath<Sprite>(WandererConceptSpritePath);
+            if (conceptSprite != null)
             {
-                for (int x = 0; x < width; x++)
-                {
-                    Vector2 point = new(x + 0.5f, y + 0.5f);
-                    bool outer = IsInCapsule(point, top, bottom, width * 0.43f, width);
-                    bool inner = IsInCapsule(point, top, bottom, width * 0.36f, width);
-                    texture.SetPixel(x, y, inner ? fill : outer ? outline : Color.clear);
-                }
+                return conceptSprite;
             }
 
-            return WriteSpriteAsset(texture, WandererSpritePath, 64f, Vector4.zero);
+            Texture2D texture = PrototypeWandererSpriteFactory.CreateTexture("Wanderer Prototype Redesign");
+            return WriteSpriteAsset(texture, WandererSpritePath, PrototypeWandererSpriteFactory.PixelsPerUnit, Vector4.zero);
         }
 
         static Sprite CreateShadeSprite()

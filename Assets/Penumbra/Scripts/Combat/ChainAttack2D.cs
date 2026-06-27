@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using Penumbra.CameraTools;
 using Penumbra.Player;
 using UnityEngine;
 using UnityEngine.InputSystem;
@@ -14,6 +15,8 @@ namespace Penumbra.Combat
         const int HitBufferSize = 16;
 
         static Material runtimeLineMaterial;
+        static int activeHitstops;
+        static float sharedHitstopRestoreTimeScale = 1f;
 
         readonly Collider2D[] hitBuffer = new Collider2D[HitBufferSize];
         readonly HashSet<Damageable2D> hitThisSwing = new();
@@ -29,39 +32,52 @@ namespace Penumbra.Combat
         [SerializeField] float damage = 14f;
         [SerializeField] Vector2 knockback = new(6.5f, 2.2f);
         [SerializeField] float hitRadius = 0.22f;
+        [SerializeField] float pogoBounceVelocity = 15.5f;
+        [SerializeField] float hitstopDuration = 0.045f;
+        [SerializeField] float cameraShakeIntensity = 0.12f;
+        [SerializeField] float cameraShakeDuration = 0.11f;
 
         [Header("Visual")]
-        [SerializeField] Vector2 anchorOffset = new(0.35f, 0.32f);
-        [SerializeField] float idleLength = 0.58f;
-        [SerializeField] float idleDrop = 0.42f;
-        [SerializeField] float swingStartAngle = -18f;
-        [SerializeField] float swingEndAngle = 22f;
+        [SerializeField] Vector2 anchorOffset = new(0.32f, -0.24f);
+        [SerializeField] float idleLength = 0.5f;
+        [SerializeField] float idleDrop = 0.34f;
+        [SerializeField] float swingStartAngle = -10f;
+        [SerializeField] float swingEndAngle = 18f;
         [SerializeField] float chainSlack = 0.18f;
         [SerializeField] float whipBend = 0.2f;
-        [SerializeField] int visualSegments = 7;
-        [SerializeField] float lineWidth = 0.08f;
+        [SerializeField] int visualSegments = 9;
+        [SerializeField] float lineWidth = 0.09f;
         [SerializeField] bool showIdleChain = true;
         [SerializeField] string sortingLayerName = "VFX";
         [SerializeField] int sortingOrder = 14;
-        [SerializeField] Color chainColor = new(0.82f, 0.9f, 1f, 1f);
-        [SerializeField] Color activeChainColor = new(1f, 0.9f, 0.42f, 1f);
+        [SerializeField] Color chainColor = new(0.62f, 0.64f, 0.6f, 1f);
+        [SerializeField] Color activeChainColor = new(0.95f, 0.84f, 0.46f, 1f);
 
         PenumbraCharacterController2D character;
         LineRenderer lineRenderer;
         Transform chainVisual;
         Vector3[] chainPoints;
+        Vector2 attackDirection = Vector2.right;
         float swingTimer;
         float nextAttackTime;
+        Coroutine hitstopRoutine;
 
         bool IsSwinging => swingTimer > 0f;
 
         public void AttackNow()
+        {
+            int facing = character != null ? character.FacingSign : 1;
+            AttackNow(new Vector2(facing, 0f));
+        }
+
+        public void AttackNow(Vector2 direction)
         {
             if (!Application.isPlaying || Time.time < nextAttackTime)
             {
                 return;
             }
 
+            attackDirection = direction.sqrMagnitude > 0.01f ? direction.normalized : Vector2.right * (character != null ? character.FacingSign : 1);
             swingTimer = swingDuration;
             nextAttackTime = Time.time + cooldown;
             hitThisSwing.Clear();
@@ -97,6 +113,10 @@ namespace Penumbra.Combat
             cooldown = Mathf.Max(0f, cooldown);
             damage = Mathf.Max(0f, damage);
             hitRadius = Mathf.Max(0.01f, hitRadius);
+            pogoBounceVelocity = Mathf.Max(0f, pogoBounceVelocity);
+            hitstopDuration = Mathf.Max(0f, hitstopDuration);
+            cameraShakeIntensity = Mathf.Max(0f, cameraShakeIntensity);
+            cameraShakeDuration = Mathf.Max(0f, cameraShakeDuration);
             idleLength = Mathf.Max(0f, idleLength);
             idleDrop = Mathf.Max(0f, idleDrop);
             visualSegments = Mathf.Max(1, visualSegments);
@@ -119,6 +139,17 @@ namespace Penumbra.Combat
             if (lineRenderer != null)
             {
                 lineRenderer.enabled = false;
+            }
+
+            if (hitstopRoutine != null)
+            {
+                StopCoroutine(hitstopRoutine);
+                hitstopRoutine = null;
+                activeHitstops = Mathf.Max(0, activeHitstops - 1);
+                if (activeHitstops == 0)
+                {
+                    Time.timeScale = sharedHitstopRestoreTimeScale;
+                }
             }
         }
 
@@ -152,14 +183,51 @@ namespace Penumbra.Combat
             Keyboard keyboard = Keyboard.current;
             if (keyboard != null && keyboard.jKey.wasPressedThisFrame)
             {
-                AttackNow();
+                AttackNow(GetKeyboardAttackDirection(keyboard));
             }
 
             Gamepad gamepad = Gamepad.current;
             if (gamepad != null && gamepad.buttonWest.wasPressedThisFrame)
             {
-                AttackNow();
+                AttackNow(GetGamepadAttackDirection(gamepad));
             }
+        }
+
+        Vector2 GetKeyboardAttackDirection(Keyboard keyboard)
+        {
+            int facing = character != null ? character.FacingSign : 1;
+
+            if (keyboard.wKey.isPressed || keyboard.upArrowKey.isPressed)
+            {
+                return Vector2.up;
+            }
+
+            if (keyboard.sKey.isPressed || keyboard.downArrowKey.isPressed)
+            {
+                return Vector2.down;
+            }
+
+            return new Vector2(facing, 0f);
+        }
+
+        Vector2 GetGamepadAttackDirection(Gamepad gamepad)
+        {
+            int facing = character != null ? character.FacingSign : 1;
+            Vector2 stick = gamepad.leftStick.ReadValue();
+            float dpadY = gamepad.dpad.up.isPressed ? 1f : gamepad.dpad.down.isPressed ? -1f : 0f;
+            float vertical = Mathf.Abs(stick.y) > 0.45f ? stick.y : dpadY;
+
+            if (vertical > 0.45f)
+            {
+                return Vector2.up;
+            }
+
+            if (vertical < -0.45f)
+            {
+                return Vector2.down;
+            }
+
+            return new Vector2(facing, 0f);
         }
 
         void DamageAlongChain()
@@ -192,8 +260,43 @@ namespace Penumbra.Combat
 
                     damageable.ApplyDamage(damage, transform.position, knockback);
                     hitThisSwing.Add(damageable);
+                    ApplySuccessfulHitFeedback();
                 }
             }
+        }
+
+        void ApplySuccessfulHitFeedback()
+        {
+            if (attackDirection.y < -0.5f && character != null && !character.IsGrounded)
+            {
+                character.ApplyPogoBounce(pogoBounceVelocity);
+            }
+
+            if (hitstopDuration > 0f && hitstopRoutine == null)
+            {
+                hitstopRoutine = StartCoroutine(DoHitstop());
+            }
+
+            FollowCamera2D.ShakeActiveCamera(cameraShakeIntensity, cameraShakeDuration);
+        }
+
+        System.Collections.IEnumerator DoHitstop()
+        {
+            if (activeHitstops == 0)
+            {
+                sharedHitstopRestoreTimeScale = Time.timeScale;
+                Time.timeScale = 0f;
+            }
+
+            activeHitstops++;
+            yield return new WaitForSecondsRealtime(hitstopDuration);
+            activeHitstops = Mathf.Max(0, activeHitstops - 1);
+            if (activeHitstops == 0)
+            {
+                Time.timeScale = sharedHitstopRestoreTimeScale;
+            }
+
+            hitstopRoutine = null;
         }
 
         void CacheComponents(bool createMissing = true)
@@ -281,8 +384,7 @@ namespace Penumbra.Combat
             float progress = IsSwinging ? 1f - swingTimer / swingDuration : 0f;
             float reach = IsSwinging ? attackRange * Mathf.Sin(progress * Mathf.PI) : idleLength;
             float angle = IsSwinging ? Mathf.Lerp(swingStartAngle, swingEndAngle, progress) : -Mathf.Atan2(idleDrop, Mathf.Max(0.01f, idleLength)) * Mathf.Rad2Deg;
-            float angleRadians = angle * Mathf.Deg2Rad;
-            Vector2 direction = new(Mathf.Cos(angleRadians) * facing, Mathf.Sin(angleRadians));
+            Vector2 direction = IsSwinging ? Rotate(attackDirection, angle) : new Vector2(Mathf.Cos(angle * Mathf.Deg2Rad) * facing, Mathf.Sin(angle * Mathf.Deg2Rad));
             Vector2 tip = anchor + direction * reach;
 
             for (int i = 0; i < chainPoints.Length; i++)
@@ -309,6 +411,14 @@ namespace Penumbra.Combat
         Vector2 GetAnchor(int facing)
         {
             return (Vector2)transform.position + new Vector2(anchorOffset.x * facing, anchorOffset.y);
+        }
+
+        static Vector2 Rotate(Vector2 vector, float degrees)
+        {
+            float radians = degrees * Mathf.Deg2Rad;
+            float sin = Mathf.Sin(radians);
+            float cos = Mathf.Cos(radians);
+            return new Vector2(vector.x * cos - vector.y * sin, vector.x * sin + vector.y * cos);
         }
 
         static Material GetRuntimeLineMaterial()
