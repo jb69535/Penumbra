@@ -1,4 +1,5 @@
 using Penumbra.Art;
+using Penumbra.Combat;
 using UnityEngine;
 using UnityEngine.InputSystem;
 
@@ -90,6 +91,7 @@ namespace Penumbra.Player
         [SerializeField] Sprite cinderSitIdleSprite;
         [SerializeField] Sprite[] cinderDashSprites;
         [SerializeField] Sprite[] cinderSlideSprites;
+        [SerializeField] Sprite[] cinderAttackSprites;
         [SerializeField] Sprite cinderFrontIdleSprite;
         [SerializeField] Sprite cinderSideLeftSprite;
         [SerializeField] Sprite cinderSideRightSprite;
@@ -98,7 +100,10 @@ namespace Penumbra.Player
         [SerializeField] float cinderDashFrameRate = 14f;
         [SerializeField] float cinderSlideFrameRate = 12f;
         [SerializeField] float cinderSitFrameRate = 8f;
+        [SerializeField] float cinderAttackFrameRate = 12f;
         [SerializeField] float cinderSitMoveSpeed = 3.5f;
+        [SerializeField] RopeWhipAttack2D ropeWhipAttack;
+        [SerializeField] RopeController2D ropeController;
         [SerializeField] float cinderSlideSpeed = 10f;
         [SerializeField] float cinderSlideDuration = 0.52f;
         [SerializeField] float cinderSlideCooldown = 0.35f;
@@ -162,6 +167,8 @@ namespace Penumbra.Player
         public bool IsSitting => useCinderWispSpriteAnimation && sitHeld && isGrounded && slideTimer <= 0f;
         public bool IsSitMoving => IsSitting && sitMovingHeld;
         public bool IsSliding => slideTimer > 0f;
+        public bool IsAttacking => attackPulseTimer > 0f;
+        public float AttackPulseDuration => attackPulseDuration;
 
         static readonly int AnimSpeed = Animator.StringToHash("Speed");
         static readonly int AnimYVelocity = Animator.StringToHash("YVelocity");
@@ -215,7 +222,8 @@ namespace Penumbra.Player
             Sprite frontIdle = null,
             Sprite sideLeft = null,
             Sprite sideRight = null,
-            Sprite sitIdle = null)
+            Sprite sitIdle = null,
+            Sprite[] attackFrames = null)
         {
             cinderIdleSprites = idleFrames;
             cinderRunSprites = runFrames;
@@ -224,6 +232,11 @@ namespace Penumbra.Player
             cinderSitIdleSprite = sitIdle;
             cinderDashSprites = dashFrames;
             cinderSlideSprites = slideFrames;
+            cinderAttackSprites = attackFrames;
+            if (attackFrames != null && attackFrames.Length > 0)
+            {
+                attackPulseDuration = attackFrames.Length / Mathf.Max(cinderAttackFrameRate, 0.01f);
+            }
             cinderFrontIdleSprite = frontIdle ?? (idleFrames != null && idleFrames.Length > 0 ? idleFrames[0] : null);
             cinderSideLeftSprite = sideLeft;
             cinderSideRightSprite = sideRight;
@@ -262,6 +275,34 @@ namespace Penumbra.Player
             hitStunTimer = hitStunDuration;
             hitFlashTimer = hitFlashDuration;
             body.linearVelocity = new Vector2(direction * knockback.x, knockback.y);
+        }
+
+        void BeginAttack()
+        {
+            attackPulseTimer = attackPulseDuration;
+            attackQueued = false;
+            cinderActiveLoopFrames = null;
+
+            if (ropeWhipAttack != null)
+            {
+                ropeWhipAttack.SetFacing(facingSign > 0);
+                ropeWhipAttack.PlayAttack(attackPulseDuration);
+            }
+            else if (ropeController != null)
+            {
+                ropeController.SetFacing(facingSign > 0);
+                ropeController.PlaySwingAttack(attackPulseDuration);
+            }
+        }
+
+        public void SetRopeWhipAttack(RopeWhipAttack2D attack)
+        {
+            ropeWhipAttack = attack;
+        }
+
+        public void SetRopeController(RopeController2D controller)
+        {
+            ropeController = controller;
         }
 
         void Reset()
@@ -319,6 +360,11 @@ namespace Penumbra.Player
             cinderDashFrameRate = Mathf.Max(1f, cinderDashFrameRate);
             cinderSlideFrameRate = Mathf.Max(1f, cinderSlideFrameRate);
             cinderSitFrameRate = Mathf.Max(1f, cinderSitFrameRate);
+            cinderAttackFrameRate = Mathf.Max(1f, cinderAttackFrameRate);
+            if (cinderAttackSprites != null && cinderAttackSprites.Length > 0)
+            {
+                attackPulseDuration = cinderAttackSprites.Length / cinderAttackFrameRate;
+            }
             cinderSitMoveSpeed = Mathf.Max(0f, cinderSitMoveSpeed);
             cinderSlideSpeed = Mathf.Max(0f, cinderSlideSpeed);
             cinderSlideDuration = Mathf.Max(0f, cinderSlideDuration);
@@ -580,8 +626,7 @@ namespace Penumbra.Player
 
             if (attackQueued)
             {
-                attackPulseTimer = attackPulseDuration;
-                attackQueued = false;
+                BeginAttack();
             }
         }
 
@@ -1391,6 +1436,22 @@ namespace Penumbra.Player
             if (dashTimer > 0f && cinderDashSprites != null && cinderDashSprites.Length > 0)
             {
                 PlayCinderSpriteLoop(cinderDashSprites, cinderDashFrameRate, Time.deltaTime);
+                return;
+            }
+
+            if (attackPulseTimer > 0f && cinderAttackSprites != null && cinderAttackSprites.Length > 0)
+            {
+                cinderActiveLoopFrames = null;
+                float attackProgress = 1f - attackPulseTimer / Mathf.Max(0.01f, attackPulseDuration);
+                int frameCount = cinderAttackSprites.Length;
+                int frame = Mathf.Clamp(Mathf.FloorToInt(attackProgress * frameCount), 0, frameCount - 1);
+                if (attackProgress >= 0.999f)
+                {
+                    frame = frameCount - 1;
+                }
+
+                cinderSpriteFlipX = facingSign < 0;
+                SetCinderSprite(cinderAttackSprites[frame]);
                 return;
             }
 

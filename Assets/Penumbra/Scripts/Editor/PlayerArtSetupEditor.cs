@@ -21,6 +21,7 @@ namespace Penumbra.EditorTools
         const string SitFramesFolder = "Assets/Penumbra/Art/Characters/Player/Frames/Sit";
         const string DashFramesFolder = "Assets/Penumbra/Art/Characters/Player/Frames/Dash";
         const string SlideFramesFolder = "Assets/Penumbra/Art/Characters/Player/Frames/Slide";
+        const string AttackFramesFolder = "Assets/Penumbra/Art/Characters/Player/Frames/Attack";
         const string GameArtSourceFolder = @"C:\Users\FLEXBOY\Downloads\game";
         const float TargetCharacterHeight = 1.8f;
 
@@ -68,6 +69,7 @@ namespace Penumbra.EditorTools
 
             Directory.CreateDirectory("Assets/Penumbra/Prefabs/Player");
             RunGameSpriteImport();
+            RunRopeImport();
             AssetDatabase.Refresh();
 
             float pixelsPerUnit = TargetCharacterHeight > 0f ? 100f : 100f;
@@ -78,6 +80,7 @@ namespace Penumbra.EditorTools
             Sprite[] sitFrames = ImportFrameFolder(SitFramesFolder, pixelsPerUnit);
             Sprite[] dashFrames = ImportFrameFolder(DashFramesFolder, pixelsPerUnit);
             Sprite[] slideFrames = ImportFrameFolder(SlideFramesFolder, pixelsPerUnit);
+            Sprite[] attackFrames = ImportFrameFolder(AttackFramesFolder, pixelsPerUnit);
             Sprite frontIdle = ImportSingleSprite($"{PlayerArtFolder}/player_idle_0.png", pixelsPerUnit);
             Sprite sideLeft = ImportSingleSprite($"{PlayerArtFolder}/player_left_0.png", pixelsPerUnit);
             Sprite sideRight = ImportSingleSprite($"{PlayerArtFolder}/player_right_0.png", pixelsPerUnit);
@@ -120,7 +123,8 @@ namespace Penumbra.EditorTools
                 frontIdle,
                 sideLeft,
                 sideRight,
-                sitIdle);
+                sitIdle,
+                attackFrames);
 
             AssetDatabase.SaveAssets();
             AssetDatabase.Refresh();
@@ -135,13 +139,35 @@ namespace Penumbra.EditorTools
                 EditorUtility.DisplayDialog(
                     "Penumbra Player Setup",
                     "Cinder Wisp sprites are wired to the git-base Wanderer controller.\n\n" +
-                    "- Movement: PenumbraCharacterController2D (Shift dash, Shift+Down+dir slide, J attack)\n" +
+                    "- Movement: PenumbraCharacterController2D (Shift dash, Shift+Down+dir slide, J rope attack)\n" +
                     "- Sprites: idle/run/jump/sit/dash/slide from Downloads/game\n" +
                     "- Down/S/C: sit idle; Down+Left/Right: crouch walk\n" +
                     "- Scene: Sandbox_Movement2D\n\n" +
                     "Play with the Wanderer_MovementSandbox object.",
                     "OK");
             }
+        }
+
+        static void RunRopeImport()
+        {
+            string projectRoot = Directory.GetParent(Application.dataPath).FullName;
+            string scriptPath = Path.Combine(projectRoot, "Tools", "import_rope_attack.py");
+            if (!File.Exists(scriptPath))
+            {
+                return;
+            }
+
+            System.Diagnostics.ProcessStartInfo startInfo = new()
+            {
+                FileName = "py",
+                Arguments = $"\"{scriptPath}\"",
+                WorkingDirectory = projectRoot,
+                UseShellExecute = false,
+                CreateNoWindow = true
+            };
+
+            System.Diagnostics.Process process = System.Diagnostics.Process.Start(startInfo);
+            process?.WaitForExit();
         }
 
         static void RunGameSpriteImport()
@@ -292,7 +318,8 @@ namespace Penumbra.EditorTools
             Sprite frontIdle,
             Sprite sideLeft,
             Sprite sideRight,
-            Sprite sitIdle)
+            Sprite sitIdle,
+            Sprite[] attackFrames = null)
         {
             if (!File.Exists(SandboxScenePath))
             {
@@ -326,7 +353,8 @@ namespace Penumbra.EditorTools
                 frontIdle,
                 sideLeft,
                 sideRight,
-                sitIdle);
+                sitIdle,
+                attackFrames);
 
             SerializedObject serializedWanderer = new SerializedObject(wanderer);
             serializedWanderer.FindProperty("moveSpeed").floatValue = 7.5f;
