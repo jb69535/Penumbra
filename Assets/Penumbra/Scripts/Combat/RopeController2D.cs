@@ -30,9 +30,11 @@ namespace Penumbra.Combat
         [SerializeField] Vector3 handPointLocalRight = new(0.32f, 0.42f, 0f);
 
         [Header("Visual")]
-        [SerializeField] bool showHandleSprite;
+        [SerializeField] bool showHandleSprite = true;
         [SerializeField] bool showTipSprite = true;
         [SerializeField] float tipAnchorOffset;
+        [SerializeField] Vector2 handleLocalOffset;
+        [SerializeField] Vector2 ropeAttachLocalRight = new(0.078f, 0f);
 
         [Header("Facing")]
         [SerializeField] bool facingRight = true;
@@ -46,10 +48,6 @@ namespace Penumbra.Combat
         public void SetFacing(bool right)
         {
             facingRight = right;
-            if (!IsSwinging)
-            {
-                UpdateHandPointLocalPosition(handPointLocalRight);
-            }
         }
 
         public void PlaySwingAttack(float duration = -1f)
@@ -78,7 +76,8 @@ namespace Penumbra.Combat
             pointCount = Mathf.Max(2, pointCount);
             points = new Vector3[pointCount];
             ConfigureLineRenderer();
-            UpdateHandPointLocalPosition(handPointLocalRight);
+            CacheHandleAttachOffset();
+            AttachHandleToHandPoint();
             HideRope();
         }
 
@@ -99,6 +98,7 @@ namespace Penumbra.Combat
             settleDuration = Mathf.Max(0f, settleDuration);
             tipAnchorOffset = Mathf.Max(0f, tipAnchorOffset);
             ConfigureLineRenderer();
+            CacheHandleAttachOffset();
         }
 
         void OnDisable()
@@ -169,7 +169,6 @@ namespace Penumbra.Combat
             }
 
             HideRope();
-            UpdateHandPointLocalPosition(handPointLocalRight);
             attackRoutine = null;
         }
 
@@ -181,7 +180,8 @@ namespace Penumbra.Combat
             }
 
             float t = Mathf.Clamp01(elapsed / swingDuration);
-            Vector3 start = handPoint.position;
+            UpdateHandleAtWrist();
+            Vector3 start = GetRopeAttachPosition();
             float dir = facingRight ? 1f : -1f;
             Vector3 direction = new Vector3(dir, 0f, 0f);
             Vector3 normal = Vector3.up;
@@ -245,9 +245,6 @@ namespace Penumbra.Combat
             if (showHandleSprite && ropeHandle != null)
             {
                 ropeHandle.enabled = true;
-                ropeHandle.transform.position = start;
-                ropeHandle.transform.rotation = Quaternion.identity;
-                ropeHandle.transform.localScale = Vector3.one * handleScale;
             }
             else if (ropeHandle != null)
             {
@@ -258,6 +255,59 @@ namespace Penumbra.Combat
             {
                 ropeHitbox.transform.position = end;
             }
+        }
+
+        void AttachHandleToHandPoint()
+        {
+            if (ropeHandle == null || handPoint == null)
+            {
+                return;
+            }
+
+            Transform handleTransform = ropeHandle.transform;
+            if (handleTransform.parent != handPoint)
+            {
+                handleTransform.SetParent(handPoint, false);
+            }
+
+            handleTransform.localPosition = new Vector3(handleLocalOffset.x, handleLocalOffset.y, 0f);
+            handleTransform.localRotation = Quaternion.identity;
+        }
+
+        void UpdateHandleAtWrist()
+        {
+            if (!showHandleSprite || ropeHandle == null || handPoint == null)
+            {
+                return;
+            }
+
+            AttachHandleToHandPoint();
+            float flip = facingRight ? 1f : -1f;
+            ropeHandle.transform.localScale = new Vector3(handleScale * flip, handleScale, 1f);
+            ropeHandle.enabled = true;
+        }
+
+        Vector3 GetRopeAttachPosition()
+        {
+            if (handPoint == null)
+            {
+                return transform.position;
+            }
+
+            float dir = facingRight ? 1f : -1f;
+            Vector3 localAttach = new Vector3(ropeAttachLocalRight.x * dir, ropeAttachLocalRight.y, 0f);
+            return handPoint.TransformPoint(localAttach);
+        }
+
+        void CacheHandleAttachOffset()
+        {
+            if (ropeHandle == null || ropeHandle.sprite == null)
+            {
+                return;
+            }
+
+            float halfWidth = ropeHandle.sprite.bounds.extents.x * handleScale;
+            ropeAttachLocalRight = new Vector2(halfWidth * 0.95f, handleLocalOffset.y);
         }
 
         float GetStrikeProgress(float elapsed, float activeStart, float activeEnd)
@@ -330,6 +380,8 @@ namespace Penumbra.Combat
             ropeHandle = handle;
             ropeHitbox = hitbox;
             ConfigureLineRenderer();
+            CacheHandleAttachOffset();
+            AttachHandleToHandPoint();
         }
     }
 }

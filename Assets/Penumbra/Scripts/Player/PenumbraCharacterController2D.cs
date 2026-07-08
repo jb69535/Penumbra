@@ -104,6 +104,11 @@ namespace Penumbra.Player
         [SerializeField] float cinderSitMoveSpeed = 3.5f;
         [SerializeField] RopeWhipAttack2D ropeWhipAttack;
         [SerializeField] RopeController2D ropeController;
+        [SerializeField] Transform cinderHandPoint;
+        [Header("Hand Point Tuning")]
+        [SerializeField] Vector2 cinderIdleHandLocal = new(-0.156f, -0.907f);
+        [SerializeField] Vector2[] cinderAttackHandLocals;
+        [SerializeField] bool cinderMirrorHandXOnFlip;
         [SerializeField] float cinderSlideSpeed = 10f;
         [SerializeField] float cinderSlideDuration = 0.52f;
         [SerializeField] float cinderSlideCooldown = 0.35f;
@@ -112,6 +117,8 @@ namespace Penumbra.Player
         [SerializeField] float cinderSlideVisualOffsetY = -0.1f;
         [SerializeField] float cinderSitCapsuleHeight = 1.05f;
         [SerializeField] float cinderSitCapsuleWidth = 0.68f;
+
+        const string HandPointName = "HandPoint";
 
         Rigidbody2D body;
         CapsuleCollider2D capsule;
@@ -375,6 +382,7 @@ namespace Penumbra.Player
             cinderSitCapsuleHeight = Mathf.Clamp(cinderSitCapsuleHeight, 0.5f, ColliderHeight);
             cinderSlideCapsuleHeight = Mathf.Min(cinderSlideCapsuleHeight, cinderSitCapsuleHeight - 0.01f);
             cinderSitCapsuleWidth = Mathf.Clamp(cinderSitCapsuleWidth, 0.4f, ColliderWidth);
+            EnsureCinderAttackHandLocalsSize();
 
             if (!gameObject.scene.IsValid())
             {
@@ -1014,7 +1022,7 @@ namespace Penumbra.Player
             UpdateAnimatorParameters();
         }
 
-        void ApplyCinderVisualFeetPose()
+        void ApplyCinderVisualFeetPose(bool skipHandSync)
         {
             if (visualTransform == null || capsule == null)
             {
@@ -1036,6 +1044,190 @@ namespace Penumbra.Player
             visualTransform.localScale = new Vector3(uniformScale, uniformScale, 1f);
             float visualOffsetY = IsSliding ? cinderSlideVisualOffsetY : 0f;
             visualTransform.localPosition = new Vector3(0f, feetLocalY - spriteBottomLocalY * uniformScale + visualOffsetY, 0f);
+            if (!skipHandSync)
+            {
+                SyncCinderHandPoint();
+            }
+        }
+
+        void ApplyCinderVisualFeetPose()
+        {
+            ApplyCinderVisualFeetPose(skipHandSync: false);
+        }
+
+        void EnsureCinderAttackHandLocalsSize()
+        {
+            int targetCount = cinderAttackSprites != null && cinderAttackSprites.Length > 0
+                ? cinderAttackSprites.Length
+                : Mathf.Max(cinderAttackHandLocals?.Length ?? 0, 1);
+
+            if (targetCount <= 0)
+            {
+                return;
+            }
+
+            if (cinderAttackHandLocals != null && cinderAttackHandLocals.Length == targetCount)
+            {
+                return;
+            }
+
+            Vector2[] resized = new Vector2[targetCount];
+            for (int i = 0; i < targetCount; i++)
+            {
+                if (cinderAttackHandLocals != null && i < cinderAttackHandLocals.Length)
+                {
+                    resized[i] = cinderAttackHandLocals[i];
+                }
+                else
+                {
+                    resized[i] = cinderIdleHandLocal;
+                }
+            }
+
+            cinderAttackHandLocals = resized;
+        }
+
+        int GetCinderAttackFrameIndex()
+        {
+            if (attackPulseTimer <= 0f)
+            {
+                return 0;
+            }
+
+            int frameCount = cinderAttackSprites != null && cinderAttackSprites.Length > 0
+                ? cinderAttackSprites.Length
+                : cinderAttackHandLocals != null ? cinderAttackHandLocals.Length : 1;
+            float attackProgress = 1f - attackPulseTimer / Mathf.Max(0.01f, attackPulseDuration);
+            int frame = Mathf.Clamp(Mathf.FloorToInt(attackProgress * frameCount), 0, frameCount - 1);
+            if (attackProgress >= 0.999f)
+            {
+                frame = frameCount - 1;
+            }
+
+            return frame;
+        }
+
+        Vector2 GetCurrentCinderHandLocal()
+        {
+            if (attackPulseTimer > 0f && cinderAttackHandLocals != null && cinderAttackHandLocals.Length > 0)
+            {
+                int frame = Mathf.Clamp(GetCinderAttackFrameIndex(), 0, cinderAttackHandLocals.Length - 1);
+                return cinderAttackHandLocals[frame];
+            }
+
+            return cinderIdleHandLocal;
+        }
+
+        Vector2 ApplyCinderHandFacing(Vector2 local)
+        {
+            if (cinderMirrorHandXOnFlip && cinderSpriteFlipX)
+            {
+                local.x = -local.x;
+            }
+
+            return local;
+        }
+
+        public void PreviewCinderAttackHandFrame(int frameIndex)
+        {
+            CacheComponents(false);
+            EnsureCinderAttackHandLocalsSize();
+
+            if (cinderAttackSprites != null && cinderAttackSprites.Length > 0 && visualRenderer != null)
+            {
+                frameIndex = Mathf.Clamp(frameIndex, 0, cinderAttackSprites.Length - 1);
+                visualRenderer.sprite = cinderAttackSprites[frameIndex];
+            }
+
+            if (cinderAttackHandLocals != null && cinderAttackHandLocals.Length > 0)
+            {
+                frameIndex = Mathf.Clamp(frameIndex, 0, cinderAttackHandLocals.Length - 1);
+                CacheCinderHandPoint();
+                if (cinderHandPoint != null)
+                {
+                    Vector2 local = ApplyCinderHandFacing(cinderAttackHandLocals[frameIndex]);
+                    cinderHandPoint.localPosition = new Vector3(local.x, local.y, 0f);
+                }
+            }
+
+            if (visualTransform != null)
+            {
+                ApplyCinderVisualFeetPose(skipHandSync: true);
+            }
+        }
+
+        public bool TryCaptureCinderHandPointToAttackFrame(int frameIndex)
+        {
+            EnsureCinderAttackHandLocalsSize();
+            if (cinderAttackHandLocals == null || cinderAttackHandLocals.Length == 0)
+            {
+                return false;
+            }
+
+            CacheCinderHandPoint();
+            if (cinderHandPoint == null)
+            {
+                return false;
+            }
+
+            frameIndex = Mathf.Clamp(frameIndex, 0, cinderAttackHandLocals.Length - 1);
+            Vector3 local = cinderHandPoint.localPosition;
+            if (cinderMirrorHandXOnFlip && cinderSpriteFlipX)
+            {
+                local.x = -local.x;
+            }
+
+            cinderAttackHandLocals[frameIndex] = new Vector2(local.x, local.y);
+            return true;
+        }
+
+        public void FillCinderAttackHandLocalsFromIdle()
+        {
+            EnsureCinderAttackHandLocalsSize();
+            if (cinderAttackHandLocals == null)
+            {
+                return;
+            }
+
+            for (int i = 0; i < cinderAttackHandLocals.Length; i++)
+            {
+                cinderAttackHandLocals[i] = cinderIdleHandLocal;
+            }
+        }
+
+        void CacheCinderHandPoint()
+        {
+            if (cinderHandPoint != null)
+            {
+                return;
+            }
+
+            if (visualTransform != null)
+            {
+                cinderHandPoint = visualTransform.Find(HandPointName);
+            }
+
+            if (cinderHandPoint == null)
+            {
+                cinderHandPoint = transform.Find(HandPointName);
+            }
+        }
+
+        void SyncCinderHandPoint()
+        {
+            if (!UsesCinderWispSpriteAnimation())
+            {
+                return;
+            }
+
+            CacheCinderHandPoint();
+            if (cinderHandPoint == null)
+            {
+                return;
+            }
+
+            Vector2 local = ApplyCinderHandFacing(GetCurrentCinderHandLocal());
+            cinderHandPoint.localPosition = new Vector3(local.x, local.y, 0f);
         }
 
         Sprite GetCinderSitReferenceSprite()

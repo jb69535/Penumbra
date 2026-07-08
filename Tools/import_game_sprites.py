@@ -627,6 +627,14 @@ TextureImporter:
     asset_path.with_suffix(asset_path.suffix + ".meta").write_text(meta, encoding="utf-8")
 
 
+def read_existing_guid(asset_path: Path) -> str | None:
+    meta_path = asset_path.with_suffix(asset_path.suffix + ".meta")
+    if not meta_path.exists():
+        return None
+    match = re.search(r"^guid: ([0-9a-f]{32})$", meta_path.read_text(encoding="utf-8"), re.MULTILINE)
+    return match.group(1) if match else None
+
+
 def import_frame_folder(
     source_dir: Path,
     dest_dir: Path,
@@ -641,7 +649,11 @@ def import_frame_folder(
 ) -> list[tuple[str, str]]:
     dest_dir.mkdir(parents=True, exist_ok=True)
 
+    existing_guids: dict[str, str] = {}
     for old_png in dest_dir.glob("*.png"):
+        guid = read_existing_guid(old_png)
+        if guid is not None:
+            existing_guids[old_png.name] = guid
         old_png.unlink()
         meta = old_png.with_suffix(old_png.suffix + ".meta")
         if meta.exists():
@@ -668,7 +680,7 @@ def import_frame_folder(
         dest_name = f"{prefix}_{index:02d}.png"
         dest_path = dest_dir / dest_name
         processed.save(dest_path, "PNG")
-        guid = new_guid()
+        guid = existing_guids.get(dest_name) or new_guid()
         write_sprite_meta(dest_path, guid, reference_ppu)
         entries.append((dest_name, guid))
         print(f"  {dest_name}: {processed.size[0]}x{processed.size[1]} ppu={reference_ppu:.2f}")

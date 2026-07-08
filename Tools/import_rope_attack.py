@@ -237,7 +237,7 @@ TextureImporter:
     asset_path.with_suffix(asset_path.suffix + ".meta").write_text(meta, encoding="utf-8")
 
 
-def write_sprite_meta(asset_path: Path, guid: str, ppu: float) -> None:
+def write_sprite_meta(asset_path: Path, guid: str, ppu: float, pivot_x: float = 0.5, pivot_y: float = 0.5) -> None:
     meta = f"""fileFormatVersion: 2
 guid: {guid}
 TextureImporter:
@@ -287,7 +287,7 @@ TextureImporter:
   spriteExtrude: 1
   spriteMeshType: 0
   alignment: 0
-  spritePivot: {{x: 0.5, y: 0.5}}
+  spritePivot: {{x: {pivot_x}, y: {pivot_y}}}
   spritePixelsToUnits: {ppu}
   spriteBorder: {{x: 0, y: 0, z: 0, w: 0}}
   spriteGenerateFallbackPhysicsShape: 1
@@ -367,7 +367,10 @@ def import_rope_assets(ppu: float) -> None:
         processed = process_rope_sprite(source)
         processed.save(dest, "PNG")
         guid = read_existing_guid(dest) or new_guid()
-        write_sprite_meta(dest, guid, ppu)
+        if name == "rope_handle":
+            write_sprite_meta(dest, guid, ppu, 0.5, 0.5)
+        else:
+            write_sprite_meta(dest, guid, ppu, 0.5, 1.0)
         print(f"Rope sprite {name}: {processed.size[0]}x{processed.size[1]}")
 
 

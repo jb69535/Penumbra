@@ -77,8 +77,8 @@ namespace Penumbra.EditorTools
             }
 
             DisableLegacyChainAttack(player);
-            RopeWhipAttack2D ropeWhipAttack = BuildRopeHierarchy(player.transform, ropeMaterial, ropeTipSprite, ropeHandleSprite);
-            WireAttackSprites(player, attackFrames, ropeWhipAttack);
+            RopeController2D ropeController = BuildRopeHierarchy(player.transform, ropeMaterial, ropeTipSprite, ropeHandleSprite);
+            WireAttackSprites(player, attackFrames, ropeController);
 
             EditorSceneManager.MarkSceneDirty(scene);
             EditorSceneManager.SaveScene(scene);
@@ -276,14 +276,15 @@ namespace Penumbra.EditorTools
             }
         }
 
-        static RopeWhipAttack2D BuildRopeHierarchy(
+        static RopeController2D BuildRopeHierarchy(
             Transform player,
             Material ropeMaterial,
             Sprite ropeTipSprite,
             Sprite ropeHandleSprite)
         {
-            Transform handPoint = EnsureChild(player, "HandPoint");
-            handPoint.localPosition = new Vector3(0.32f, 0.42f, 0f);
+            Transform visual = player.Find("Wanderer Visual") ?? player;
+            Transform handPoint = EnsureChild(visual, "HandPoint");
+            handPoint.localPosition = new Vector3(-0.156f, -0.907f, 0f);
 
             Transform ropeSystem = EnsureChild(player, "RopeSystem");
             RopeController2D ropeController = ropeSystem.GetComponent<RopeController2D>();
@@ -292,23 +293,23 @@ namespace Penumbra.EditorTools
                 ropeController = ropeSystem.gameObject.AddComponent<RopeController2D>();
             }
 
-            RopeWhipAttack2D ropeWhipAttack = ropeSystem.GetComponent<RopeWhipAttack2D>();
-            if (ropeWhipAttack == null)
+            RopeWhipAttack2D legacyWhip = ropeSystem.GetComponent<RopeWhipAttack2D>();
+            if (legacyWhip != null)
             {
-                ropeWhipAttack = ropeSystem.gameObject.AddComponent<RopeWhipAttack2D>();
+                UnityEngine.Object.DestroyImmediate(legacyWhip);
             }
 
             LineRenderer ropeLine = EnsureLineRenderer(EnsureChild(ropeSystem, "RopeLine"), ropeMaterial);
             SpriteRenderer ropeTip = EnsureSpriteRenderer(EnsureChild(ropeSystem, "RopeTip"), ropeTipSprite, 15);
-            SpriteRenderer ropeHandle = EnsureSpriteRenderer(EnsureChild(ropeSystem, "RopeHandle"), ropeHandleSprite, 16);
+            SpriteRenderer ropeHandle = EnsureSpriteRenderer(EnsureChild(handPoint, "RopeHandle"), ropeHandleSprite, 16);
             CircleCollider2D ropeHitbox = EnsureHitbox(EnsureChild(ropeSystem, "RopeHitbox"));
             ropeTip.transform.localScale = Vector3.one * 0.18f;
+            ropeHandle.transform.localPosition = Vector3.zero;
+            ropeHandle.transform.localRotation = Quaternion.identity;
             ropeHandle.transform.localScale = Vector3.one * 0.16f;
 
             ropeController.ConfigureReferences(handPoint, ropeLine, ropeTip, ropeHandle, ropeHitbox);
             ropeController.SetFacing(true);
-            ropeWhipAttack.ConfigureReferences(handPoint, ropeLine, ropeTip, ropeHandle, ropeHitbox);
-            ropeWhipAttack.SetFacing(true);
 
             SerializedObject serializedRope = new SerializedObject(ropeController);
             serializedRope.FindProperty("pointCount").intValue = 32;
@@ -327,33 +328,10 @@ namespace Penumbra.EditorTools
             serializedRope.FindProperty("showHandleSprite").boolValue = true;
             serializedRope.FindProperty("showTipSprite").boolValue = true;
             serializedRope.FindProperty("tipAnchorOffset").floatValue = 0f;
-            serializedRope.FindProperty("handPointLocalRight").vector3Value = new Vector3(0.32f, 0.42f, 0f);
+            serializedRope.FindProperty("handPointLocalRight").vector3Value = new Vector3(-0.156f, -0.907f, 0f);
             serializedRope.ApplyModifiedPropertiesWithoutUndo();
 
-            SerializedObject serializedWhip = new SerializedObject(ropeWhipAttack);
-            serializedWhip.FindProperty("pointCount").intValue = 32;
-            serializedWhip.FindProperty("maxLength").floatValue = 1.65f;
-            serializedWhip.FindProperty("attackDuration").floatValue = 0.5f;
-            serializedWhip.FindProperty("waveAmplitude").floatValue = 0.24f;
-            serializedWhip.FindProperty("waveCount").floatValue = 2.1f;
-            serializedWhip.FindProperty("waveSpeed").floatValue = 2.45f;
-            serializedWhip.FindProperty("ropeWidth").floatValue = 0.055f;
-            serializedWhip.FindProperty("tipScale").floatValue = 0.18f;
-            serializedWhip.FindProperty("handleScale").floatValue = 0.16f;
-            serializedWhip.FindProperty("hitboxStartTime").floatValue = 0.22f;
-            serializedWhip.FindProperty("hitboxEndTime").floatValue = 0.31f;
-            serializedWhip.FindProperty("startupLength").floatValue = 0.06f;
-            serializedWhip.FindProperty("settleDuration").floatValue = 0.08f;
-            serializedWhip.FindProperty("handPointLocalRight").vector3Value = new Vector3(0.32f, 0.42f, 0f);
-            serializedWhip.FindProperty("sortingLayerName").stringValue = "VFX";
-            serializedWhip.FindProperty("ropeSortingOrder").intValue = 14;
-            serializedWhip.FindProperty("tipSortingOrder").intValue = 15;
-            serializedWhip.FindProperty("handleSortingOrder").intValue = 16;
-            serializedWhip.FindProperty("showTipSprite").boolValue = true;
-            serializedWhip.FindProperty("showHandleSprite").boolValue = true;
-            serializedWhip.ApplyModifiedPropertiesWithoutUndo();
-
-            return ropeWhipAttack;
+            return ropeController;
         }
 
         static Transform EnsureChild(Transform parent, string name)
@@ -433,8 +411,11 @@ namespace Penumbra.EditorTools
         static void WireAttackSprites(
             PenumbraCharacterController2D player,
             Sprite[] attackFrames,
-            RopeWhipAttack2D ropeWhipAttack)
+            RopeController2D ropeController)
         {
+            Transform visual = player.transform.Find("Wanderer Visual");
+            Transform handPoint = visual != null ? visual.Find("HandPoint") : player.transform.Find("HandPoint");
+
             SerializedObject serializedPlayer = new SerializedObject(player);
             serializedPlayer.FindProperty("cinderAttackSprites").arraySize = attackFrames.Length;
             for (int i = 0; i < attackFrames.Length; i++)
@@ -442,12 +423,18 @@ namespace Penumbra.EditorTools
                 serializedPlayer.FindProperty("cinderAttackSprites").GetArrayElementAtIndex(i).objectReferenceValue = attackFrames[i];
             }
 
-            serializedPlayer.FindProperty("cinderAttackFrameRate").floatValue = 14f;
-            serializedPlayer.FindProperty("attackPulseDuration").floatValue = attackFrames.Length / 14f;
-            serializedPlayer.FindProperty("ropeWhipAttack").objectReferenceValue = ropeWhipAttack;
+            serializedPlayer.FindProperty("cinderAttackFrameRate").floatValue = 12f;
+            serializedPlayer.FindProperty("attackPulseDuration").floatValue = attackFrames.Length / 12f;
+            serializedPlayer.FindProperty("ropeController").objectReferenceValue = ropeController;
+            serializedPlayer.FindProperty("ropeWhipAttack").objectReferenceValue = null;
+            if (handPoint != null)
+            {
+                serializedPlayer.FindProperty("cinderHandPoint").objectReferenceValue = handPoint;
+            }
+
             serializedPlayer.ApplyModifiedPropertiesWithoutUndo();
 
-            player.SetRopeWhipAttack(ropeWhipAttack);
+            player.SetRopeController(ropeController);
         }
     }
 }
