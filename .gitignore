@@ -1,3 +1,7 @@
+# Python
+__pycache__/
+*.py[cod]
+
 # Accidental nested Unity project copy (open C:\Dev\Penumbra, not C:\Dev\Penumbra\Penumbra)
 /Penumbra/
 
